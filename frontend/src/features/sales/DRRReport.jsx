@@ -24,6 +24,7 @@ const DRRReport = ({
   onRefresh,
   onDownload,
   isDownloading,
+  downloadProgress,
 }) => {
   const rows = Array.isArray(data) ? [...data] : [];
 
@@ -179,7 +180,27 @@ const DRRReport = ({
             />
           </div>
           <button onClick={onRefresh} className="refresh-btn">Refresh Data</button>
-          <button onClick={onDownload} className="btn-ghost" disabled={isDownloading}>{isDownloading ? 'Downloading...' : 'Download XLSX'}</button>
+          <div className="download-section">
+            <button onClick={onDownload} className="btn-ghost" disabled={isDownloading}>
+              {isDownloading ? 'Downloading...' : 'Download XLSX'}
+            </button>
+            {isDownloading && downloadProgress && downloadProgress.total > 0 && (
+              <div className="download-progress">
+                <div className="progress-bar">
+                  <div 
+                    className="progress-fill" 
+                    style={{ width: `${downloadProgress.percentage}%` }}
+                  ></div>
+                </div>
+                <span className="progress-text">
+                  {downloadProgress.current > 0 ? 
+                    `Page ${downloadProgress.current}/${downloadProgress.total} - ${downloadProgress.records} records (${downloadProgress.percentage}%)` :
+                    'Preparing download...'
+                  }
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

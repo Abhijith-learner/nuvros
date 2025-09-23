@@ -5,7 +5,7 @@ import axios from 'axios';
 import './App.css';
 import { api, apiBaseURL, setupAuthInterceptors, startProactiveRefresh } from './services/api';
 import { formatNumber, formatPercent } from './utils/format';
-import { exportToXlsx } from './utils/export';
+import { exportToXlsx, exportToXlsxOptimized } from './utils/export';
 import { getCurrentMonthStartEnd, calculateWeeksBetweenMonths, generateWeekHeaders } from './utils/date';
 import { compareValues } from './utils/sort';
 import Header from './components/layout/Header';
@@ -328,6 +328,18 @@ function App() {
     inventory: false
   });
   
+  // Download progress states
+  const [downloadProgress, setDownloadProgress] = useState({
+    drr: { current: 0, total: 0, records: 0, percentage: 0 },
+    platformSummary: { current: 0, total: 0, records: 0, percentage: 0 },
+    platformReport: { current: 0, total: 0, records: 0, percentage: 0 },
+    weekly: { current: 0, total: 0, records: 0, percentage: 0 },
+    monthly: { current: 0, total: 0, records: 0, percentage: 0 },
+    salesContribution: { current: 0, total: 0, records: 0, percentage: 0 },
+    dailyReport: { current: 0, total: 0, records: 0, percentage: 0 },
+    inventory: { current: 0, total: 0, records: 0, percentage: 0 }
+  });
+  
   // Sorting state per table (kept minimal; Overall Sales Summary sorting disabled)
   const [sortState, setSortState] = useState({
     drr: { key: null, direction: 'asc' },
@@ -611,16 +623,17 @@ function App() {
     }
   };
 
-  const fetchAllDrrData = async () => {
+  const fetchAllDrrData = async (onProgress = null) => {
     try {
       let allData = [];
       let currentPage = 1;
       let hasMoreData = true;
+      let totalPages = 1;
       
       while (hasMoreData) {
         const params = {
           page: currentPage,
-          page_size: 100 // Use the same page size as the UI
+          page_size: 500 // Increased page size to reduce API calls
         };
         if (drrStartDate) params.start_date = drrStartDate;
         if (drrEndDate) params.end_date = drrEndDate;
@@ -632,12 +645,29 @@ function App() {
         
         const response = await api.get('/drr-report/', { params });
         if (response.data.success && response.data.data) {
-          allData = [...allData, ...response.data.data];
+          // More memory efficient concatenation
+          allData.push(...response.data.data);
           
           // Check if there are more pages
           const pagination = response.data.pagination;
-          if (pagination && currentPage < pagination.total_pages) {
-            currentPage++;
+          if (pagination) {
+            totalPages = pagination.total_pages;
+            if (onProgress) {
+              onProgress({
+                current: currentPage,
+                total: totalPages,
+                records: allData.length,
+                percentage: Math.round((currentPage / totalPages) * 100)
+              });
+            }
+            
+            if (currentPage < pagination.total_pages) {
+              currentPage++;
+              // Add small delay to prevent overwhelming the server
+              await new Promise(resolve => setTimeout(resolve, 50));
+            } else {
+              hasMoreData = false;
+            }
           } else {
             hasMoreData = false;
           }
@@ -655,17 +685,27 @@ function App() {
 
   const handleDownloadDrr = async () => {
     setDownloadLoading(prev => ({ ...prev, drr: true }));
+    setDownloadProgress(prev => ({ ...prev, drr: { current: 0, total: 0, records: 0, percentage: 0 } }));
+    
     try {
-      const allData = await fetchAllDrrData();
-      if (allData.length === 0) {
+      // Use current filtered data instead of fetching all data
+      const currentData = Array.isArray(drrData) ? [...drrData] : [];
+      
+      if (currentData.length === 0) {
         console.log('No data to export');
         return;
       }
       
-      console.log(`Exporting ${allData.length} DRR records`);
+      console.log(`Exporting ${currentData.length} filtered DRR records`);
+      
+      // Update progress to show data processing
+      setDownloadProgress(prev => ({ 
+        ...prev, 
+        drr: { current: 1, total: 1, records: currentData.length, percentage: 100 } 
+      }));
       
       const s = sortState.drr;
-      const sorted = Array.isArray(allData) ? [...allData] : [];
+      const sorted = [...currentData];
       if (s && s.key) sorted.sort((a, b) => compareValues(a[s.key], b[s.key], s.direction));
       
       const header = ['Platform Item ID', 'Title', 'Platform', 'DRR', 'Last 7 Days DRR', 'Last 14 Days DRR', 'GMV', 'Units', 'Remark (7D DRR)', 'Remark (14D DRR)'];
@@ -681,10 +721,24 @@ function App() {
         item.drr > item.last_7_days_drr ? 'Growing' : 'Need Attention',
         item.drr > item.last_14_days_drr ? 'Growing' : 'Need Attention'
       ]);
-      const file = `drr_report_${drrStartDate || ''}_${drrEndDate || ''}.xlsx`;
-      exportToXlsx(file, [header, ...rows], 'DRR');
+      
+      const filterInfo = [];
+      if (drrStartDate) filterInfo.push(`from_${drrStartDate}`);
+      if (drrEndDate) filterInfo.push(`to_${drrEndDate}`);
+      if (selectedDrrPlatforms && selectedDrrPlatforms.length > 0) filterInfo.push(`platform_${selectedDrrPlatforms.join('-')}`);
+      if (selectedDrrCities && selectedDrrCities.length > 0) filterInfo.push(`city_${selectedDrrCities.join('-')}`);
+      
+      const file = `drr_report_filtered_${filterInfo.join('_')}_${currentData.length}records.xlsx`;
+      
+      // Use optimized export for large datasets
+      if (rows.length > 1000) {
+        await exportToXlsxOptimized(file, [header, ...rows], 'DRR');
+      } else {
+        exportToXlsx(file, [header, ...rows], 'DRR');
+      }
     } finally {
       setDownloadLoading(prev => ({ ...prev, drr: false }));
+      setDownloadProgress(prev => ({ ...prev, drr: { current: 0, total: 0, records: 0, percentage: 0 } }));
     }
   };
 
@@ -711,12 +765,27 @@ function App() {
 
   const handleDownloadPlatformSummary = async () => {
     setDownloadLoading(prev => ({ ...prev, platformSummary: true }));
+    setDownloadProgress(prev => ({ ...prev, platformSummary: { current: 0, total: 0, records: 0, percentage: 0 } }));
+    
     try {
-      const allData = await fetchAllPlatformSummaryData();
-      if (allData.length === 0) return;
+      // Use current filtered data instead of fetching all data
+      const currentData = Array.isArray(platformSummaryData) ? [...platformSummaryData] : [];
+      
+      if (currentData.length === 0) {
+        console.log('No data to export');
+        return;
+      }
+      
+      console.log(`Exporting ${currentData.length} filtered Platform Summary records`);
+      
+      // Update progress to show data processing
+      setDownloadProgress(prev => ({ 
+        ...prev, 
+        platformSummary: { current: 1, total: 1, records: currentData.length, percentage: 100 } 
+      }));
       
       const s = sortState.platformSummary;
-      const sorted = Array.isArray(allData) ? [...allData] : [];
+      const sorted = [...currentData];
       if (s && s.key) sorted.sort((a, b) => compareValues(a[s.key], b[s.key], s.direction));
       
       const header = ['Category', 'DRR', 'Last 7 days Avg', 'GMV', 'Units', 'ASP'];
@@ -728,10 +797,24 @@ function App() {
         formatNumber(item.total_units || 0),
         formatNumber(item.asp || 0)
       ]);
-      const file = `platform_sales_summary_${platformSummaryStartDate || ''}_${platformSummaryEndDate || ''}.xlsx`;
-      exportToXlsx(file, [header, ...rows], 'Platform Summary');
+      
+      const filterInfo = [];
+      if (platformSummaryStartDate) filterInfo.push(`from_${platformSummaryStartDate}`);
+      if (platformSummaryEndDate) filterInfo.push(`to_${platformSummaryEndDate}`);
+      if (selectedPlatformSummary && selectedPlatformSummary.length > 0) filterInfo.push(`platform_${selectedPlatformSummary.join('-')}`);
+      if (selectedPlatformSummaryCity && selectedPlatformSummaryCity.length > 0) filterInfo.push(`city_${selectedPlatformSummaryCity.join('-')}`);
+      
+      const file = `platform_summary_filtered_${filterInfo.join('_')}_${currentData.length}records.xlsx`;
+      
+      // Use optimized export for large datasets
+      if (rows.length > 1000) {
+        await exportToXlsxOptimized(file, [header, ...rows], 'Platform Summary');
+      } else {
+        exportToXlsx(file, [header, ...rows], 'Platform Summary');
+      }
     } finally {
       setDownloadLoading(prev => ({ ...prev, platformSummary: false }));
+      setDownloadProgress(prev => ({ ...prev, platformSummary: { current: 0, total: 0, records: 0, percentage: 0 } }));
     }
   };
 
@@ -758,11 +841,18 @@ function App() {
   const handleDownloadPlatformReport = async () => {
     setDownloadLoading(prev => ({ ...prev, platformReport: true }));
     try {
-      const allData = await fetchAllPlatformReportData();
-      if (allData.length === 0) return;
+      // Use current filtered data instead of fetching all data
+      const currentData = Array.isArray(platformReportData) ? [...platformReportData] : [];
+      
+      if (currentData.length === 0) {
+        console.log('No data to export');
+        return;
+      }
+      
+      console.log(`Exporting ${currentData.length} filtered Platform Report records`);
       
       const s = sortState.platformReport;
-      const sorted = Array.isArray(allData) ? [...allData] : [];
+      const sorted = [...currentData];
       if (s && s.key) sorted.sort((a, b) => compareValues(a[s.key], b[s.key], s.direction));
       
       const header = ['Category', 'Current', 'Target', 'Projected', 'Attainment'];
@@ -773,8 +863,14 @@ function App() {
         formatNumber(item.projected),
         `${Number(item.attainment ?? 0).toFixed(2)}%`
       ]);
-      const platformLabel = Array.isArray(selectedPlatformReport) && selectedPlatformReport.length > 0 ? selectedPlatformReport.join('-') : 'all';
-      const file = `sales_performance_${platformReportMonthStart || ''}_to_${platformReportMonthEnd || ''}_${platformLabel}_${selectedMetricReport || ''}.xlsx`;
+      
+      const filterInfo = [];
+      if (platformReportMonthStart) filterInfo.push(`from_${platformReportMonthStart}`);
+      if (platformReportMonthEnd) filterInfo.push(`to_${platformReportMonthEnd}`);
+      if (Array.isArray(selectedPlatformReport) && selectedPlatformReport.length > 0) filterInfo.push(`platform_${selectedPlatformReport.join('-')}`);
+      if (selectedMetricReport) filterInfo.push(`metric_${selectedMetricReport}`);
+      
+      const file = `sales_performance_filtered_${filterInfo.join('_')}_${currentData.length}records.xlsx`;
       exportToXlsx(file, [header, ...rows], 'Sales Performance');
     } finally {
       setDownloadLoading(prev => ({ ...prev, platformReport: false }));
@@ -866,11 +962,18 @@ function App() {
   const handleDownloadWeekly = async () => {
     setDownloadLoading(prev => ({ ...prev, weekly: true }));
     try {
-      const allData = await fetchAllWeeklyData();
-      if (allData.length === 0) return;
+      // Use current filtered data instead of fetching all data
+      const currentData = Array.isArray(weeklyData) ? [...weeklyData] : [];
+      
+      if (currentData.length === 0) {
+        console.log('No weekly data to export');
+        return;
+      }
+      
+      console.log(`Exporting ${currentData.length} filtered Weekly records`);
       
       const s = sortState.weekly;
-      const sorted = Array.isArray(allData) ? [...allData] : [];
+      const sorted = [...currentData];
       if (s && s.key) sorted.sort((a, b) => compareValues(a[s.key], b[s.key], s.direction));
       
       // Calculate dynamic week columns based on date range
@@ -882,8 +985,13 @@ function App() {
         item.category,
         ...weekHeaders.map((_, index) => formatNumber(item[`w${index + 1}`] || 0))
       ]);
-      const platformLabelW = Array.isArray(selectedPlatformReport) && selectedPlatformReport.length > 0 ? selectedPlatformReport.join('-') : 'all';
-      const file = `sales_performance_weekly_${platformReportMonthStart || ''}_to_${platformReportMonthEnd || ''}_${platformLabelW}.xlsx`;
+      
+      const filterInfo = [];
+      if (platformReportMonthStart) filterInfo.push(`from_${platformReportMonthStart}`);
+      if (platformReportMonthEnd) filterInfo.push(`to_${platformReportMonthEnd}`);
+      if (Array.isArray(selectedPlatformReport) && selectedPlatformReport.length > 0) filterInfo.push(`platform_${selectedPlatformReport.join('-')}`);
+      
+      const file = `weekly_performance_filtered_${filterInfo.join('_')}_${currentData.length}records.xlsx`;
       exportToXlsx(file, [header, ...rows], 'Weekly');
     } finally {
       setDownloadLoading(prev => ({ ...prev, weekly: false }));
@@ -1544,11 +1652,18 @@ function App() {
   const handleDownloadMonthly = async () => {
     setDownloadLoading(prev => ({ ...prev, monthly: true }));
     try {
-      const allData = await fetchAllMonthlyData();
-      if (allData.length === 0) return;
+      // Use current filtered data instead of fetching all data
+      const currentData = Array.isArray(monthlyData) ? [...monthlyData] : [];
+      
+      if (currentData.length === 0) {
+        console.log('No monthly data to export');
+        return;
+      }
+      
+      console.log(`Exporting ${currentData.length} filtered Monthly records`);
       
       const s = sortState.monthly;
-      const sorted = Array.isArray(allData) ? [...allData] : [];
+      const sorted = [...currentData];
       if (s && s.key) sorted.sort((a, b) => compareValues(a[s.key], b[s.key], s.direction));
       
       // Get month columns dynamically
@@ -1558,8 +1673,13 @@ function App() {
         item.category,
         ...monthColumns.map(col => formatNumber(item[col] || 0))
       ]);
-      const platformLabelM = Array.isArray(selectedPlatformReport) && selectedPlatformReport.length > 0 ? selectedPlatformReport.join('-') : 'all';
-      const file = `sales_performance_monthly_${platformReportMonthStart || ''}_to_${platformReportMonthEnd || ''}_${platformLabelM}.xlsx`;
+      
+      const filterInfo = [];
+      if (platformReportMonthStart) filterInfo.push(`from_${platformReportMonthStart}`);
+      if (platformReportMonthEnd) filterInfo.push(`to_${platformReportMonthEnd}`);
+      if (Array.isArray(selectedPlatformReport) && selectedPlatformReport.length > 0) filterInfo.push(`platform_${selectedPlatformReport.join('-')}`);
+      
+      const file = `monthly_performance_filtered_${filterInfo.join('_')}_${currentData.length}records.xlsx`;
       exportToXlsx(file, [header, ...rows], 'Monthly');
     } finally {
       setDownloadLoading(prev => ({ ...prev, monthly: false }));
@@ -2345,6 +2465,7 @@ function App() {
                 onRefresh={fetchDrrData}
                 onDownload={handleDownloadDrr}
                 isDownloading={downloadLoading.drr}
+                downloadProgress={downloadProgress.drr}
               />
             ) : activeTab === 'platformSummary' ? (
               <PlatformSummary
