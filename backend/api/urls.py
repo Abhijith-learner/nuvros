@@ -16,6 +16,7 @@ urlpatterns = [
     path('inventory-movements/', views.get_inventory_movements, name='inventory_movements'),
     path('ads-overview/', views.get_ads_overview, name='ads_overview'),
     path('ads-category-spends/', views.get_ads_category_spends, name='ads_category_spends'),
+    path('hygiene-overview/', views.get_hygiene_overview, name='hygiene_overview'),
     path('healthcheck/', views.health_check, name='healthcheck'),
     # Auth endpoints
     path('auth/signup/', views.signup, name='auth_signup'),

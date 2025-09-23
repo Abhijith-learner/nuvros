@@ -4188,3 +4188,189 @@ def get_inventory_movements(request):
             })
     except Exception as e:
         return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@require_auth
+def get_hygiene_overview(request):
+    """
+    Hygiene Overview data sourced from public.ecom_consolidated table.
+
+    Returns hygiene data with price and coupon validation scores.
+
+    Query params:
+    - start_date: YYYY-MM-DD (optional)
+    - end_date: YYYY-MM-DD (optional)
+    - brand: optional brand filter
+    - platform: optional platform filter (comma-separated for multiple)
+    """
+    try:
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        brand = request.query_params.get('brand')
+        platform = request.query_params.get('platform')
+
+        with connection.cursor() as cursor:
+            # Check if ecom_consolidated table exists
+            cursor.execute(
+                """
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'ecom_consolidated'
+                );
+                """
+            )
+            table_exists = cursor.fetchone()[0]
+
+            if not table_exists:
+                # Return mock data structure for development
+                mock_data = [
+                    {
+                        'date': '2024-01-15',
+                        'brand': 'Clear',
+                        'platform': 'Amazon',
+                        'price_rule': 'Standard',
+                        'live_price': 299.00,
+                        'price_validation': True,
+                        'coupon_rule': '10% Off',
+                        'live_coupon': '10% Off',
+                        'coupon_validation': True
+                    },
+                    {
+                        'date': '2024-01-15',
+                        'brand': 'Clear',
+                        'platform': 'Flipkart',
+                        'price_rule': 'Standard',
+                        'live_price': 299.00,
+                        'price_validation': True,
+                        'coupon_rule': '10% Off',
+                        'live_coupon': '15% Off',
+                        'coupon_validation': False
+                    },
+                    {
+                        'date': '2024-01-16',
+                        'brand': 'Clear',
+                        'platform': 'Amazon',
+                        'price_rule': 'Premium',
+                        'live_price': 350.00,
+                        'price_validation': False,
+                        'coupon_rule': '10% Off',
+                        'live_coupon': '10% Off',
+                        'coupon_validation': True
+                    }
+                ]
+
+                # Calculate hygiene scores
+                total_records = len(mock_data)
+                price_valid_count = sum(1 for record in mock_data if record['price_validation'])
+                coupon_valid_count = sum(1 for record in mock_data if record['coupon_validation'])
+                
+                price_hygiene_score = (price_valid_count / total_records * 100) if total_records > 0 else 0
+                coupon_hygiene_score = (coupon_valid_count / total_records * 100) if total_records > 0 else 0
+
+                return Response({
+                    'success': True,
+                    'data': mock_data,
+                    'hygiene_scores': {
+                        'price_hygiene_score': round(price_hygiene_score, 2),
+                        'coupon_hygiene_score': round(coupon_hygiene_score, 2)
+                    },
+                    'options': {
+                        'brands': ['Clear', 'Dove', 'Pantene'],
+                        'platforms': ['Amazon', 'Flipkart', 'Myntra']
+                    }
+                })
+
+            # If table exists, query actual data
+            where_parts = []
+            params = []
+            
+            if start_date:
+                # Convert YYYY-MM-DD to DD-MM-YYYY for database comparison
+                try:
+                    start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+                    start_date_formatted = start_date_obj.strftime('%d-%m-%Y')
+                    where_parts.append('"Date" >= %s')
+                    params.append(start_date_formatted)
+                except ValueError:
+                    # If conversion fails, use original date
+                    where_parts.append('"Date" >= %s')
+                    params.append(start_date)
+            if end_date:
+                # Convert YYYY-MM-DD to DD-MM-YYYY for database comparison
+                try:
+                    end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
+                    end_date_formatted = end_date_obj.strftime('%d-%m-%Y')
+                    where_parts.append('"Date" <= %s')
+                    params.append(end_date_formatted)
+                except ValueError:
+                    # If conversion fails, use original date
+                    where_parts.append('"Date" <= %s')
+                    params.append(end_date)
+            if brand:
+                where_parts.append('"Brand" = %s')
+                params.append(brand)
+            if platform:
+                platforms = [p.strip() for p in platform.split(',') if p.strip()]
+                if platforms:
+                    placeholders = ','.join(['%s'] * len(platforms))
+                    where_parts.append(f'"Platform" IN ({placeholders})')
+                    params.extend(platforms)
+
+            where_clause = ' WHERE ' + ' AND '.join(where_parts) if where_parts else ''
+
+            # Query the actual data
+            query = f"""
+                SELECT 
+                    "Date",
+                    "Brand",
+                    "Platform",
+                    "Price Rule",
+                    "Live Price",
+                    "Price Validation",
+                    "Coupon Rule",
+                    "Live Coupon",
+                    "Coupon Validation"
+                FROM public.ecom_consolidated
+                {where_clause}
+                ORDER BY "Date" DESC, "Platform", "Brand"
+            """
+
+            cursor.execute(query, params)
+            columns = [col[0] for col in cursor.description]
+            rows = cursor.fetchall()
+
+            # Convert to list of dictionaries
+            data = [dict(zip(columns, row)) for row in rows]
+
+            # Calculate hygiene scores
+            total_records = len(data)
+            price_valid_count = sum(1 for record in data if record.get('Price Validation', False))
+            coupon_valid_count = sum(1 for record in data if record.get('Coupon Validation', False))
+            
+            price_hygiene_score = (price_valid_count / total_records * 100) if total_records > 0 else 0
+            coupon_hygiene_score = (coupon_valid_count / total_records * 100) if total_records > 0 else 0
+
+            # Get unique brands and platforms for filter options
+            cursor.execute('SELECT DISTINCT "Brand" FROM public.ecom_consolidated WHERE "Brand" IS NOT NULL ORDER BY "Brand"')
+            brands = [row[0] for row in cursor.fetchall()]
+            
+            cursor.execute('SELECT DISTINCT "Platform" FROM public.ecom_consolidated WHERE "Platform" IS NOT NULL ORDER BY "Platform"')
+            platforms = [row[0] for row in cursor.fetchall()]
+
+            return Response({
+                'success': True,
+                'data': data,
+                'hygiene_scores': {
+                    'price_hygiene_score': round(price_hygiene_score, 2),
+                    'coupon_hygiene_score': round(coupon_hygiene_score, 2)
+                },
+                'options': {
+                    'brands': brands,
+                    'platforms': platforms
+                }
+            })
+
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)

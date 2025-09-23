@@ -1,0 +1,142 @@
+import React, { useEffect, useState } from 'react';
+import MultiSelectDropdown from '../../components/common/MultiSelectDropdown';
+
+const HygieneOverview = ({
+  data,
+  hygieneScores,
+  loading,
+  error,
+  filters,
+  options,
+  onChangeFilters,
+  onRefresh,
+}) => {
+  const [localFilters, setLocalFilters] = useState(() => ({
+    startDate: filters?.startDate || '',
+    endDate: filters?.endDate || '',
+    brand: filters?.brand || '',
+    platform: filters?.platform || [],
+  }));
+
+  useEffect(() => {
+    setLocalFilters((prev) => ({
+      ...prev,
+      startDate: filters?.startDate || '',
+      endDate: filters?.endDate || '',
+      brand: filters?.brand || '',
+      platform: filters?.platform || [],
+    }));
+  }, [filters]);
+
+  const onField = (key, value) => {
+    const next = { ...localFilters, [key]: value };
+    setLocalFilters(next);
+  };
+
+  const onApply = () => {
+    onChangeFilters && onChangeFilters({ ...localFilters });
+    onRefresh && onRefresh();
+  };
+
+  // Apply filters immediately on change for seamless UX
+  useEffect(() => {
+    if (!onChangeFilters) return;
+    onChangeFilters({ ...localFilters });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localFilters.startDate, localFilters.endDate, localFilters.brand, localFilters.platform]);
+
+
+  const renderStatCards = () => (
+    <div className="stat-cards">
+      <div className="stat-card">
+        <div className="stat-card-header">
+          <h3>Price Hygiene Score</h3>
+        </div>
+        <div className="stat-card-value">
+          {hygieneScores?.price_hygiene_score !== undefined 
+            ? `${hygieneScores.price_hygiene_score}%` 
+            : '—'
+          }
+        </div>
+        <div className="stat-card-description">
+          Price Rule = Live Price validation
+        </div>
+      </div>
+      <div className="stat-card">
+        <div className="stat-card-header">
+          <h3>Coupon Hygiene Score</h3>
+        </div>
+        <div className="stat-card-value">
+          {hygieneScores?.coupon_hygiene_score !== undefined 
+            ? `${hygieneScores.coupon_hygiene_score}%` 
+            : '—'
+          }
+        </div>
+        <div className="stat-card-description">
+          Coupon Rule = Live Coupon validation
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderToolbar = () => (
+    <div className="filters-toolbar">
+      <div className="filters-row">
+        <label>
+          Start Date
+          <input 
+            type="date" 
+            value={localFilters.startDate} 
+            onChange={(e) => onField('startDate', e.target.value)} 
+          />
+        </label>
+        <label>
+          End Date
+          <input 
+            type="date" 
+            value={localFilters.endDate} 
+            onChange={(e) => onField('endDate', e.target.value)} 
+          />
+        </label>
+        <label>
+          Brand
+          <select 
+            value={localFilters.brand} 
+            onChange={(e) => onField('brand', e.target.value)}
+          >
+            <option value="">All Brands</option>
+            {(options?.brands || []).map((b) => (
+              <option key={b} value={b}>{b}</option>
+            ))}
+          </select>
+        </label>
+        <div className="filter-group">
+          <label>Platform</label>
+          <MultiSelectDropdown
+            options={options?.platforms || []}
+            values={localFilters.platform || []}
+            onChange={(vals) => onField('platform', vals)}
+            triggerPlaceholder="Select platforms..."
+            selectAllLabel="All Platforms"
+          />
+        </div>
+        <button onClick={onApply} className="refresh-btn">Apply</button>
+      </div>
+    </div>
+  );
+
+
+  return (
+    <div className="dashboard-container">
+      <div className="dashboard-header">
+        <h2>Hygiene Overview</h2>
+      </div>
+      {renderToolbar()}
+      {loading && <div className="loading">Loading Hygiene Data...</div>}
+      {error && <div className="error">Error: {String(error)}</div>}
+      {renderStatCards()}
+    </div>
+  );
+};
+
+export default HygieneOverview;

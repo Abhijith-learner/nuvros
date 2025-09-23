@@ -23,9 +23,10 @@ import StockLevels from './features/inventory/StockLevels';
 import InventoryOverview from './features/inventory/InventoryOverview';
 import InventoryMovements from './features/inventory/InventoryMovements';
 import { modules, getCurrentTab } from './constants/modules';
-import { fetchPlatformSalesSubcategoryDrilldown, fetchAdsOverview, fetchAdsCategorySpends } from './services/api';
+import { fetchPlatformSalesSubcategoryDrilldown, fetchAdsOverview, fetchAdsCategorySpends, fetchHygieneOverview } from './services/api';
 import AdsOverview from './features/ads/AdsOverview';
 import CategorySpends from './features/ads/CategorySpends';
+import HygieneOverview from './features/hygiene/HygieneOverview';
 
 function App() {
   const [authToken, setAuthToken] = useState(() => localStorage.getItem('token') || '');
@@ -387,6 +388,17 @@ function App() {
   const [catSpendStartDate, setCatSpendStartDate] = useState(defaultMonthStart);
   const [catSpendEndDate, setCatSpendEndDate] = useState(defaultMonthEnd);
   const [catSpendBrands, setCatSpendBrands] = useState(['Clear']);
+
+  // Hygiene Overview state
+  const [hygieneData, setHygieneData] = useState([]);
+  const [hygieneScores, setHygieneScores] = useState({ price_hygiene_score: 0, coupon_hygiene_score: 0 });
+  const [hygieneLoading, setHygieneLoading] = useState(false);
+  const [hygieneError, setHygieneError] = useState(null);
+  const [hygieneStartDate, setHygieneStartDate] = useState(defaultMonthStart);
+  const [hygieneEndDate, setHygieneEndDate] = useState(defaultMonthEnd);
+  const [hygieneBrand, setHygieneBrand] = useState('');
+  const [hygienePlatform, setHygienePlatform] = useState([]);
+  const [hygieneOptions, setHygieneOptions] = useState({ brands: [], platforms: [] });
   const [catSpendOptions, setCatSpendOptions] = useState({ brands: [] });
 
   const fetchAds = async () => {
@@ -434,6 +446,30 @@ function App() {
     }
   };
 
+  const fetchHygiene = async () => {
+    try {
+      setHygieneLoading(true);
+      setHygieneError(null);
+      const res = await fetchHygieneOverview({
+        startDate: hygieneStartDate,
+        endDate: hygieneEndDate,
+        brand: hygieneBrand,
+        platform: hygienePlatform,
+      });
+      if (res?.success) {
+        setHygieneData(res.data || []);
+        setHygieneScores(res.hygiene_scores || { price_hygiene_score: 0, coupon_hygiene_score: 0 });
+        setHygieneOptions(res.options || { brands: [], platforms: [] });
+      } else {
+        setHygieneError(res?.error || 'Failed to fetch');
+      }
+    } catch (err) {
+      setHygieneError(err.response?.data?.error || err.message);
+    } finally {
+      setHygieneLoading(false);
+    }
+  };
+
   // Modules and helpers moved to constants
   
   const toggleModuleExpansion = (moduleKey) => {
@@ -472,6 +508,13 @@ function App() {
       fetchCategorySpends();
     }
   }, [activeTab, adsStartDate, adsEndDate, adsBrand, adsPlatform, adsGroupBy, authToken, catSpendStartDate, catSpendEndDate, catSpendBrands]);
+
+  useEffect(() => {
+    if (!authToken) return;
+    if (activeTab === 'hygiene-overview') {
+      fetchHygiene();
+    }
+  }, [activeTab, hygieneStartDate, hygieneEndDate, hygieneBrand, hygienePlatform, authToken]);
 
   useEffect(() => {
     if (!authToken) return;
@@ -2904,6 +2947,27 @@ function App() {
                   if (Object.prototype.hasOwnProperty.call(next, 'brands')) setCatSpendBrands(next.brands || []);
                 }}
                 onRefresh={fetchCategorySpends}
+              />
+            ) : activeTab === 'hygiene-overview' ? (
+              <HygieneOverview
+                data={hygieneData}
+                hygieneScores={hygieneScores}
+                loading={hygieneLoading}
+                error={hygieneError}
+                filters={{
+                  startDate: hygieneStartDate,
+                  endDate: hygieneEndDate,
+                  brand: hygieneBrand,
+                  platform: hygienePlatform,
+                }}
+                options={hygieneOptions}
+                onChangeFilters={(next) => {
+                  if (Object.prototype.hasOwnProperty.call(next, 'startDate')) setHygieneStartDate(next.startDate);
+                  if (Object.prototype.hasOwnProperty.call(next, 'endDate')) setHygieneEndDate(next.endDate);
+                  if (Object.prototype.hasOwnProperty.call(next, 'brand')) setHygieneBrand(next.brand);
+                  if (Object.prototype.hasOwnProperty.call(next, 'platform')) setHygienePlatform(next.platform || []);
+                }}
+                onRefresh={fetchHygiene}
               />
             ) : (
               <div className="dashboard-container">

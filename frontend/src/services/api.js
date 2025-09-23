@@ -181,4 +181,18 @@ export const fetchAdsCategorySpends = async ({ startDate, endDate, brands = [] }
   return response.data;
 };
 
+// Hygiene Overview
+export const fetchHygieneOverview = async (filters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.startDate) params.append('start_date', filters.startDate);
+  if (filters.endDate) params.append('end_date', filters.endDate);
+  if (filters.brand) params.append('brand', filters.brand);
+  if (filters.platform && filters.platform.length > 0) {
+    params.append('platform', filters.platform.join(','));
+  }
+
+  const response = await api.get(`hygiene-overview/?${params.toString()}`);
+  return response.data;
+};
+
 
