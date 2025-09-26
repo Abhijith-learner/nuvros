@@ -17,6 +17,9 @@ urlpatterns = [
     path('ads-overview/', views.get_ads_overview, name='ads_overview'),
     path('ads-category-spends/', views.get_ads_category_spends, name='ads_category_spends'),
     path('hygiene-overview/', views.get_hygiene_overview, name='hygiene_overview'),
+    path('hygiene-table/', views.get_hygiene_table_data, name='hygiene_table'),
+    path('trend-analysis/', views.get_trend_analysis, name='trend_analysis'),
+    path('correlation-matrix/', views.get_correlation_matrix, name='correlation_matrix'),
     path('healthcheck/', views.health_check, name='healthcheck'),
     # Auth endpoints
     path('auth/signup/', views.signup, name='auth_signup'),
