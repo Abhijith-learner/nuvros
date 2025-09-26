@@ -1347,6 +1347,7 @@ function App() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      setError(null); // Clear any previous errors
       const params = {};
       if (startDate) params.start_date = startDate;
       if (endDate) params.end_date = endDate;
@@ -1360,6 +1361,7 @@ function App() {
         setTotalArticlesOverall(response.data.total_articles || 0);
         setAvailableOverallPlatforms(response.data.platforms || []);
         setAvailableBrands(response.data.brands || []);
+        setError(null); // Clear error on successful response
       } else {
         setError(response.data.error);
       }
@@ -1383,6 +1385,7 @@ function App() {
   const fetchTargetData = async () => {
     try {
       setTargetLoading(true);
+      setTargetError(null); // Clear any previous errors
       const params = {};
       if (startDate) params.start_date = startDate;
       if (endDate) params.end_date = endDate;
@@ -1390,6 +1393,7 @@ function App() {
       const response = await api.get('/sales-target-data/', { params });
       if (response.data.success) {
         setTargetData(response.data.data);
+        setTargetError(null); // Clear error on successful response
       } else {
         setTargetError(response.data.error);
       }

@@ -60,7 +60,7 @@ def get_consolidated_data(request):
                        SUM(COALESCE(units, 0)) AS sales_units,
                        COUNT(DISTINCT sales_city) AS cities_live,
                        COUNT(DISTINCT title) AS total_articles
-                FROM public.sales_master_consolidated_final
+                FROM public.sales_master_consolidated_final_test
             """
             
             params = []
@@ -114,7 +114,7 @@ def get_consolidated_data(request):
                 prev_query = """
                     SELECT platform,
                            SUM(COALESCE(gmv, 0)) AS prev_gmv
-                    FROM public.sales_master_consolidated_final
+                    FROM public.sales_master_consolidated_final_test
                     WHERE date BETWEEN %s AND %s
                     GROUP BY platform
                 """
@@ -156,7 +156,7 @@ def get_consolidated_data(request):
         
         # Compute total distinct cities across all platforms within date/brand filters
         with connection.cursor() as count_cursor:
-            count_query = "SELECT COUNT(DISTINCT sales_city) FROM public.sales_master_consolidated_final"
+            count_query = "SELECT COUNT(DISTINCT sales_city) FROM public.sales_master_consolidated_final_test"
             # Reuse filtering logic for date and brand
             count_params = []
             filter_clauses = []
@@ -179,7 +179,7 @@ def get_consolidated_data(request):
 
         # Compute total distinct titles across all platforms within date/brand filters
         with connection.cursor() as title_cursor:
-            title_query = "SELECT COUNT(DISTINCT title) FROM public.sales_master_consolidated_final"
+            title_query = "SELECT COUNT(DISTINCT title) FROM public.sales_master_consolidated_final_test"
             title_params = []
             title_filters = []
             if start_date and end_date:
@@ -201,7 +201,7 @@ def get_consolidated_data(request):
 
         # Also return all available platforms (respecting brand filter)
         with connection.cursor() as list_cursor:
-            list_query = "SELECT DISTINCT platform FROM public.sales_master_consolidated_final"
+            list_query = "SELECT DISTINCT platform FROM public.sales_master_consolidated_final_test"
             list_params = []
             if brand and brand != 'All Brands':
                 list_query += " WHERE brand = %s"
@@ -212,7 +212,7 @@ def get_consolidated_data(request):
 
         # Get all available brands from the database
         with connection.cursor() as brand_cursor:
-            brand_query = "SELECT DISTINCT brand FROM public.sales_master_consolidated_final WHERE brand IS NOT NULL ORDER BY brand"
+            brand_query = "SELECT DISTINCT brand FROM public.sales_master_consolidated_final_test WHERE brand IS NOT NULL ORDER BY brand"
             brand_cursor.execute(brand_query)
             brand_list = [row[0] for row in brand_cursor.fetchall()]
         return Response({
@@ -329,7 +329,7 @@ def get_daily_report(request):
             # Get all unique dates in ascending order within the date range
             date_query = f"""
                 SELECT DISTINCT date::date as parsed_date
-                FROM public.sales_master_consolidated_final
+                FROM public.sales_master_consolidated_final_test
                 {where_clause}
                 ORDER BY parsed_date ASC
             """
@@ -341,7 +341,7 @@ def get_daily_report(request):
             if view == 'supply_source':
                 item_query = f"""
                     SELECT DISTINCT supply_city AS supply_source
-                    FROM public.sales_master_consolidated_final
+                    FROM public.sales_master_consolidated_final_test
                     {where_clause}
                     AND supply_city IS NOT NULL
                     AND supply_city != ''
@@ -350,7 +350,7 @@ def get_daily_report(request):
             elif view == 'supply_city':
                 item_query = f"""
                     SELECT DISTINCT sales_city AS city
-                    FROM public.sales_master_consolidated_final
+                    FROM public.sales_master_consolidated_final_test
                     {where_clause}
                     AND sales_city IS NOT NULL
                     AND sales_city != ''
@@ -359,7 +359,7 @@ def get_daily_report(request):
             else:  # platform_item_id
                 item_query = f"""
                     SELECT DISTINCT platform_item_id
-                    FROM public.sales_master_consolidated_final
+                    FROM public.sales_master_consolidated_final_test
                     {where_clause}
                     ORDER BY platform_item_id
                 """
@@ -376,7 +376,7 @@ def get_daily_report(request):
                             supply_city AS supply_source,
                             date::date as parsed_date,
                             SUM(COALESCE(units, 0)) as daily_value
-                        FROM public.sales_master_consolidated_final
+                        FROM public.sales_master_consolidated_final_test
                         {where_clause}
                         AND supply_city IS NOT NULL
                         AND supply_city != ''
@@ -389,7 +389,7 @@ def get_daily_report(request):
                             supply_city AS supply_source,
                             date::date as parsed_date,
                             SUM(COALESCE(gmv, 0)) as daily_value
-                        FROM public.sales_master_consolidated_final
+                        FROM public.sales_master_consolidated_final_test
                         {where_clause}
                         AND supply_city IS NOT NULL
                         AND supply_city != ''
@@ -403,7 +403,7 @@ def get_daily_report(request):
                             sales_city AS city,
                             date::date as parsed_date,
                             SUM(COALESCE(units, 0)) as daily_value
-                        FROM public.sales_master_consolidated_final
+                        FROM public.sales_master_consolidated_final_test
                         {where_clause}
                         AND sales_city IS NOT NULL
                         AND sales_city != ''
@@ -416,7 +416,7 @@ def get_daily_report(request):
                             sales_city AS city,
                             date::date as parsed_date,
                             SUM(COALESCE(gmv, 0)) as daily_value
-                        FROM public.sales_master_consolidated_final
+                        FROM public.sales_master_consolidated_final_test
                         {where_clause}
                         AND sales_city IS NOT NULL
                         AND sales_city != ''
@@ -430,7 +430,7 @@ def get_daily_report(request):
                             platform_item_id,
                             date::date as parsed_date,
                             SUM(COALESCE(units, 0)) as daily_value
-                        FROM public.sales_master_consolidated_final
+                        FROM public.sales_master_consolidated_final_test
                         {where_clause}
                         GROUP BY platform_item_id, date::date
                         ORDER BY platform_item_id, parsed_date
@@ -441,7 +441,7 @@ def get_daily_report(request):
                             platform_item_id,
                             date::date as parsed_date,
                             SUM(COALESCE(gmv, 0)) as daily_value
-                        FROM public.sales_master_consolidated_final
+                        FROM public.sales_master_consolidated_final_test
                         {where_clause}
                         GROUP BY platform_item_id, date::date
                         ORDER BY platform_item_id, parsed_date
@@ -513,7 +513,7 @@ def get_daily_report(request):
             add_in_local('supply_city', supply_source_values, conds_p, prms_p)
             add_in_local('manufacture_city', manufacturing_city_values, conds_p, prms_p)
             cursor.execute(
-                f"SELECT DISTINCT platform FROM public.sales_master_consolidated_final{build_where_sql(conds_p)} ORDER BY platform",
+                f"SELECT DISTINCT platform FROM public.sales_master_consolidated_final_test{build_where_sql(conds_p)} ORDER BY platform",
                 prms_p,
             )
             platform_list = [row[0] for row in cursor.fetchall()]
@@ -527,7 +527,7 @@ def get_daily_report(request):
             add_in_local('supply_city', supply_source_values, conds_b, prms_b)
             add_in_local('manufacture_city', manufacturing_city_values, conds_b, prms_b)
             cursor.execute(
-                f"SELECT DISTINCT brand FROM public.sales_master_consolidated_final{build_where_sql(conds_b + ['brand IS NOT NULL'])} ORDER BY brand",
+                f"SELECT DISTINCT brand FROM public.sales_master_consolidated_final_test{build_where_sql(conds_b + ['brand IS NOT NULL'])} ORDER BY brand",
                 prms_b,
             )
             brand_list = [row[0] for row in cursor.fetchall()]
@@ -541,7 +541,7 @@ def get_daily_report(request):
             add_in_local('supply_city', supply_source_values, conds_city, prms_city)
             add_in_local('manufacture_city', manufacturing_city_values, conds_city, prms_city)
             cursor.execute(
-                f"SELECT DISTINCT sales_city FROM public.sales_master_consolidated_final{build_where_sql(conds_city + ['sales_city IS NOT NULL'])} ORDER BY sales_city",
+                f"SELECT DISTINCT sales_city FROM public.sales_master_consolidated_final_test{build_where_sql(conds_city + ['sales_city IS NOT NULL'])} ORDER BY sales_city",
                 prms_city,
             )
             cities = [row[0] for row in cursor.fetchall()]
@@ -555,7 +555,7 @@ def get_daily_report(request):
             add_in_local('sales_city', city_values, conds_sup, prms_sup)
             add_in_local('manufacture_city', manufacturing_city_values, conds_sup, prms_sup)
             cursor.execute(
-                f"SELECT DISTINCT supply_city FROM public.sales_master_consolidated_final{build_where_sql(conds_sup + ['supply_city IS NOT NULL'])} ORDER BY supply_city",
+                f"SELECT DISTINCT supply_city FROM public.sales_master_consolidated_final_test{build_where_sql(conds_sup + ['supply_city IS NOT NULL'])} ORDER BY supply_city",
                 prms_sup,
             )
             supply_sources = [row[0] for row in cursor.fetchall()]
@@ -569,7 +569,7 @@ def get_daily_report(request):
             add_in_local('sales_city', city_values, conds_manu, prms_manu)
             add_in_local('supply_city', supply_source_values, conds_manu, prms_manu)
             cursor.execute(
-                f"SELECT DISTINCT manufacture_city FROM public.sales_master_consolidated_final{build_where_sql(conds_manu + ['manufacture_city IS NOT NULL'])} ORDER BY manufacture_city",
+                f"SELECT DISTINCT manufacture_city FROM public.sales_master_consolidated_final_test{build_where_sql(conds_manu + ['manufacture_city IS NOT NULL'])} ORDER BY manufacture_city",
                 prms_manu,
             )
             manufacturing_cities = [row[0] for row in cursor.fetchall()]
@@ -583,7 +583,7 @@ def get_daily_report(request):
             add_in_local('supply_city', supply_source_values, conds_c, prms_c)
             add_in_local('manufacture_city', manufacturing_city_values, conds_c, prms_c)
             cursor.execute(
-                f"SELECT DISTINCT category FROM public.sales_master_consolidated_final{build_where_sql(conds_c + ['category IS NOT NULL'])} ORDER BY category",
+                f"SELECT DISTINCT category FROM public.sales_master_consolidated_final_test{build_where_sql(conds_c + ['category IS NOT NULL'])} ORDER BY category",
                 prms_c,
             )
             categories = [row[0] for row in cursor.fetchall()]
@@ -597,7 +597,7 @@ def get_daily_report(request):
             add_in_local('supply_city', supply_source_values, conds_sc, prms_sc)
             add_in_local('manufacture_city', manufacturing_city_values, conds_sc, prms_sc)
             cursor.execute(
-                f"SELECT DISTINCT sub_category FROM public.sales_master_consolidated_final{build_where_sql(conds_sc + ['sub_category IS NOT NULL'])} ORDER BY sub_category",
+                f"SELECT DISTINCT sub_category FROM public.sales_master_consolidated_final_test{build_where_sql(conds_sc + ['sub_category IS NOT NULL'])} ORDER BY sub_category",
                 prms_sc,
             )
             sub_categories = [row[0] for row in cursor.fetchall()]
@@ -761,7 +761,7 @@ def get_sales_contribution(request):
             # Total GMV for denominator
             total_query = f"""
                 SELECT COALESCE(SUM(COALESCE(gmv, 0)), 0)
-                FROM public.sales_master_consolidated_final
+                FROM public.sales_master_consolidated_final_test
                 {where_clause}
             """
             cursor.execute(total_query, params)
@@ -770,7 +770,7 @@ def get_sales_contribution(request):
             # Total Units for denominator (for units contribution)
             total_units_query = f"""
                 SELECT COALESCE(SUM(COALESCE(units, 0)), 0)
-                FROM public.sales_master_consolidated_final
+                FROM public.sales_master_consolidated_final_test
                 {where_clause}
             """
             cursor.execute(total_units_query, params)
@@ -781,7 +781,7 @@ def get_sales_contribution(request):
                 SELECT COUNT(*)
                 FROM (
                     SELECT platform_item_id, title, platform
-                    FROM public.sales_master_consolidated_final
+                    FROM public.sales_master_consolidated_final_test
                     {where_clause}
                     GROUP BY platform_item_id, title, platform
                 ) AS grouped_data
@@ -803,7 +803,7 @@ def get_sales_contribution(request):
                     platform,
                     SUM(COALESCE(gmv, 0)) AS gmv,
                     SUM(COALESCE(units, 0)) AS units
-                FROM public.sales_master_consolidated_final
+                FROM public.sales_master_consolidated_final_test
                 {where_clause}
                 GROUP BY platform_item_id, title, platform
                 ORDER BY gmv DESC
@@ -887,7 +887,7 @@ def get_sales_contribution(request):
                     platform_params.extend(brand_values)
             
             platform_where = " WHERE " + " AND ".join(platform_conditions) if platform_conditions else ""
-            platform_query = f"SELECT DISTINCT platform FROM public.sales_master_consolidated_final{platform_where} ORDER BY platform"
+            platform_query = f"SELECT DISTINCT platform FROM public.sales_master_consolidated_final_test{platform_where} ORDER BY platform"
             cursor.execute(platform_query, platform_params)
             platform_list = [r[0] for r in cursor.fetchall()]
             
@@ -913,7 +913,7 @@ def get_sales_contribution(request):
             
             city_conditions.append("sales_city IS NOT NULL")
             city_where = " WHERE " + " AND ".join(city_conditions)
-            city_query = f"SELECT DISTINCT sales_city FROM public.sales_master_consolidated_final{city_where} ORDER BY sales_city"
+            city_query = f"SELECT DISTINCT sales_city FROM public.sales_master_consolidated_final_test{city_where} ORDER BY sales_city"
             cursor.execute(city_query, city_params)
             city_list = [r[0] for r in cursor.fetchall()]
             
@@ -939,7 +939,7 @@ def get_sales_contribution(request):
             
             supply_conditions.append("supply_city IS NOT NULL")
             supply_where = " WHERE " + " AND ".join(supply_conditions)
-            supply_query = f"SELECT DISTINCT supply_city FROM public.sales_master_consolidated_final{supply_where} ORDER BY supply_city"
+            supply_query = f"SELECT DISTINCT supply_city FROM public.sales_master_consolidated_final_test{supply_where} ORDER BY supply_city"
             cursor.execute(supply_query, supply_params)
             supply_source_list = [r[0] for r in cursor.fetchall()]
             
@@ -960,7 +960,7 @@ def get_sales_contribution(request):
                 brand_params.extend(manufacturing_values)
             
             # Always return full brand list regardless of other filters (consistent across tabs)
-            cursor.execute("SELECT DISTINCT brand FROM public.sales_master_consolidated_final WHERE brand IS NOT NULL ORDER BY brand")
+            cursor.execute("SELECT DISTINCT brand FROM public.sales_master_consolidated_final_test WHERE brand IS NOT NULL ORDER BY brand")
             brand_list = [r[0] for r in cursor.fetchall()]
             
             # Categories list for dropdown (with comprehensive cascading filter support)
@@ -989,7 +989,7 @@ def get_sales_contribution(request):
             
             category_conditions.append("category IS NOT NULL")
             category_where = " WHERE " + " AND ".join(category_conditions)
-            category_query = f"SELECT DISTINCT category FROM public.sales_master_consolidated_final{category_where} ORDER BY category"
+            category_query = f"SELECT DISTINCT category FROM public.sales_master_consolidated_final_test{category_where} ORDER BY category"
             cursor.execute(category_query, category_params)
             category_list = [r[0] for r in cursor.fetchall()]
             
@@ -1048,14 +1048,14 @@ def get_sales_contribution(request):
             
             sub_category_conditions.append("sub_category IS NOT NULL")
             sub_category_where = " WHERE " + " AND ".join(sub_category_conditions)
-            sub_category_query = f"SELECT DISTINCT sub_category FROM public.sales_master_consolidated_final{sub_category_where} ORDER BY sub_category"
+            sub_category_query = f"SELECT DISTINCT sub_category FROM public.sales_master_consolidated_final_test{sub_category_where} ORDER BY sub_category"
             cursor.execute(sub_category_query, sub_category_params)
             sub_category_list = [r[0] for r in cursor.fetchall()]
 
             # Execute manufacturing list query
             manufacturing_where = ' WHERE ' + ' AND '.join(manufacturing_conditions + ["manufacture_city IS NOT NULL"]) if manufacturing_conditions else ' WHERE manufacture_city IS NOT NULL'
             cursor.execute(
-                f"SELECT DISTINCT manufacture_city FROM public.sales_master_consolidated_final{manufacturing_where} ORDER BY manufacture_city",
+                f"SELECT DISTINCT manufacture_city FROM public.sales_master_consolidated_final_test{manufacturing_where} ORDER BY manufacture_city",
                 manufacturing_params,
             )
             manufacturing_list = [r[0] for r in cursor.fetchall()]
@@ -1456,7 +1456,7 @@ def get_drr_report(request):
         max_date_in_db = None
         
         # Choose correct source table
-        table_name = "public.sales_master_consolidated_final"
+        table_name = "public.sales_master_consolidated_final_test"
 
         # Get the maximum date from the database (scoped to brand if provided). Fallback to global max.
         with connection.cursor() as cursor:
@@ -1944,15 +1944,15 @@ def get_platform_sales_summary(request):
         with connection.cursor() as cursor:
             if brand_list:
                 placeholders = ','.join(['%s'] * len(brand_list))
-                cursor.execute(f"SELECT MAX(date) FROM public.sales_master_consolidated_final WHERE brand IN ({placeholders})", brand_list)
+                cursor.execute(f"SELECT MAX(date) FROM public.sales_master_consolidated_final_test WHERE brand IN ({placeholders})", brand_list)
                 max_date_result = cursor.fetchone()
                 max_date_in_db = max_date_result[0] if max_date_result else None
                 if not max_date_in_db:
-                    cursor.execute("SELECT MAX(date) FROM public.sales_master_consolidated_final")
+                    cursor.execute("SELECT MAX(date) FROM public.sales_master_consolidated_final_test")
                     max_date_result = cursor.fetchone()
                     max_date_in_db = max_date_result[0] if max_date_result else None
             else:
-                cursor.execute("SELECT MAX(date) FROM public.sales_master_consolidated_final")
+                cursor.execute("SELECT MAX(date) FROM public.sales_master_consolidated_final_test")
                 max_date_result = cursor.fetchone()
                 max_date_in_db = max_date_result[0] if max_date_result else None
 
@@ -2049,7 +2049,7 @@ def get_platform_sales_summary(request):
                         WHEN %s IS NOT NULL 
                         THEN (
                             SELECT SUM(COALESCE(units, 0))::FLOAT / 7
-                            FROM public.sales_master_consolidated_final cd2
+                            FROM public.sales_master_consolidated_final_test cd2
                             WHERE cd2.category = cd.category
                             AND cd2.date BETWEEN %s AND %s
                             {sub_clause}
@@ -2060,14 +2060,14 @@ def get_platform_sales_summary(request):
                         WHEN %s IS NOT NULL 
                         THEN (
                             SELECT SUM(COALESCE(units, 0))::FLOAT / 14
-                            FROM public.sales_master_consolidated_final cd2
+                            FROM public.sales_master_consolidated_final_test cd2
                             WHERE cd2.category = cd.category
                             AND cd2.date BETWEEN %s AND %s
                             {sub_clause}
                         )
                         ELSE 0 
                     END AS last_14_days_avg
-                FROM public.sales_master_consolidated_final cd
+                FROM public.sales_master_consolidated_final_test cd
                 {where_clause}
                 GROUP BY category
                 ORDER BY category
@@ -2144,7 +2144,7 @@ def get_platform_sales_summary(request):
             add_opt('brand', brand_list)
             add_opt('manufacture_city', manufacturing_city_list)
             where_sql = (' WHERE ' + ' AND '.join(option_where)) if option_where else ''
-            platform_query = f"SELECT DISTINCT platform FROM public.sales_master_consolidated_final{where_sql} ORDER BY platform"
+            platform_query = f"SELECT DISTINCT platform FROM public.sales_master_consolidated_final_test{where_sql} ORDER BY platform"
             cursor.execute(platform_query, option_params)
             platforms = [row[0] for row in cursor.fetchall()]
             
@@ -2169,7 +2169,7 @@ def get_platform_sales_summary(request):
                 city_where.append(f"manufacture_city IN ({placeholders})")
                 city_params.extend(manufacturing_city_list)
             city_where_sql = (' WHERE ' + ' AND '.join(city_where + ["sales_city IS NOT NULL"])) if city_where else " WHERE sales_city IS NOT NULL"
-            city_query = f"SELECT DISTINCT sales_city FROM public.sales_master_consolidated_final{city_where_sql} ORDER BY sales_city"
+            city_query = f"SELECT DISTINCT sales_city FROM public.sales_master_consolidated_final_test{city_where_sql} ORDER BY sales_city"
             cursor.execute(city_query, city_params)
             cities = [row[0] for row in cursor.fetchall()]
             
@@ -2193,7 +2193,7 @@ def get_platform_sales_summary(request):
                 supply_where.append(f"manufacture_city IN ({placeholders})")
                 supply_params.extend(manufacturing_city_list)
             supply_where_sql = (' WHERE ' + ' AND '.join(supply_where + ["supply_city IS NOT NULL"])) if supply_where else " WHERE supply_city IS NOT NULL"
-            supply_source_query = f"SELECT DISTINCT supply_city FROM public.sales_master_consolidated_final{supply_where_sql} ORDER BY supply_city"
+            supply_source_query = f"SELECT DISTINCT supply_city FROM public.sales_master_consolidated_final_test{supply_where_sql} ORDER BY supply_city"
             cursor.execute(supply_source_query, supply_params)
             supply_sources = [row[0] for row in cursor.fetchall()]
             
@@ -2217,7 +2217,7 @@ def get_platform_sales_summary(request):
                 manuf_where.append(f"brand IN ({placeholders})")
                 manuf_params.extend(brand_list)
             manuf_where_sql = (' WHERE ' + ' AND '.join(manuf_where + ["manufacture_city IS NOT NULL"])) if manuf_where else " WHERE manufacture_city IS NOT NULL"
-            manufacturing_query = f"SELECT DISTINCT manufacture_city FROM public.sales_master_consolidated_final{manuf_where_sql} ORDER BY manufacture_city"
+            manufacturing_query = f"SELECT DISTINCT manufacture_city FROM public.sales_master_consolidated_final_test{manuf_where_sql} ORDER BY manufacture_city"
             cursor.execute(manufacturing_query, manuf_params)
             manufacturing_cities = [row[0] for row in cursor.fetchall()]
 
@@ -2241,7 +2241,7 @@ def get_platform_sales_summary(request):
                 brand_where.append(f"manufacture_city IN ({placeholders})")
                 brand_params_q.extend(manufacturing_city_list)
             # Always return full brand list regardless of other filters (consistent across tabs)
-            cursor.execute("SELECT DISTINCT brand FROM public.sales_master_consolidated_final WHERE brand IS NOT NULL ORDER BY brand")
+            cursor.execute("SELECT DISTINCT brand FROM public.sales_master_consolidated_final_test WHERE brand IS NOT NULL ORDER BY brand")
             brands = [row[0] for row in cursor.fetchall()]
             
             # Get available categories for filter dropdown
@@ -2267,7 +2267,7 @@ def get_platform_sales_summary(request):
                 placeholders = ','.join(['%s'] * len(manufacturing_city_list))
                 cat_where.append(f"manufacture_city IN ({placeholders})")
                 cat_params.extend(manufacturing_city_list)
-            category_query = f"SELECT DISTINCT category FROM public.sales_master_consolidated_final{' WHERE ' + ' AND '.join(cat_where + ['category IS NOT NULL']) if cat_where else ' WHERE category IS NOT NULL'} ORDER BY category"
+            category_query = f"SELECT DISTINCT category FROM public.sales_master_consolidated_final_test{' WHERE ' + ' AND '.join(cat_where + ['category IS NOT NULL']) if cat_where else ' WHERE category IS NOT NULL'} ORDER BY category"
             cursor.execute(category_query, cat_params)
             categories = [row[0] for row in cursor.fetchall()]
         
@@ -2359,15 +2359,15 @@ def get_platform_sales_subcategory_drilldown(request):
         
         with connection.cursor() as cursor:
             if brand:
-                cursor.execute("SELECT MAX(date) FROM public.sales_master_consolidated_final WHERE brand = %s", [brand])
+                cursor.execute("SELECT MAX(date) FROM public.sales_master_consolidated_final_test WHERE brand = %s", [brand])
                 max_date_result = cursor.fetchone()
                 max_date_in_db = max_date_result[0] if max_date_result else None
                 if not max_date_in_db:
-                    cursor.execute("SELECT MAX(date) FROM public.sales_master_consolidated_final")
+                    cursor.execute("SELECT MAX(date) FROM public.sales_master_consolidated_final_test")
                     max_date_result = cursor.fetchone()
                     max_date_in_db = max_date_result[0] if max_date_result else None
             else:
-                cursor.execute("SELECT MAX(date) FROM public.sales_master_consolidated_final")
+                cursor.execute("SELECT MAX(date) FROM public.sales_master_consolidated_final_test")
                 max_date_result = cursor.fetchone()
                 max_date_in_db = max_date_result[0] if max_date_result else None
 
@@ -2416,14 +2416,14 @@ def get_platform_sales_subcategory_drilldown(request):
             where_clause = " WHERE " + " AND ".join(where_conditions)
             
             # Test query to verify data exists
-            test_query = f"SELECT COUNT(*), COUNT(DISTINCT sub_category) FROM public.sales_master_consolidated_final {where_clause}"
+            test_query = f"SELECT COUNT(*), COUNT(DISTINCT sub_category) FROM public.sales_master_consolidated_final_test {where_clause}"
             cursor.execute(test_query, filter_params)
             test_result = cursor.fetchone()
             print(f"Test query: {test_query}")
             print(f"Test result: {test_result[0]} total records, {test_result[1]} distinct sub-categories")
             
             # Simple test query to see sub-categories
-            simple_query = f"SELECT DISTINCT sub_category FROM public.sales_master_consolidated_final {where_clause} ORDER BY sub_category"
+            simple_query = f"SELECT DISTINCT sub_category FROM public.sales_master_consolidated_final_test {where_clause} ORDER BY sub_category"
             cursor.execute(simple_query, filter_params)
             subcategories = cursor.fetchall()
             print(f"Sub-categories found: {[row[0] for row in subcategories]}")
@@ -2452,7 +2452,7 @@ def get_platform_sales_subcategory_drilldown(request):
                         WHEN %s IS NOT NULL 
                         THEN (
                             SELECT SUM(COALESCE(units, 0))::FLOAT / 7
-                            FROM public.sales_master_consolidated_final cd2
+                            FROM public.sales_master_consolidated_final_test cd2
                             WHERE cd2.sub_category = cd.sub_category
                             AND cd2.category = %s
                             AND cd2.date BETWEEN %s AND %s
@@ -2467,7 +2467,7 @@ def get_platform_sales_subcategory_drilldown(request):
                         WHEN %s IS NOT NULL 
                         THEN (
                             SELECT SUM(COALESCE(units, 0))::FLOAT / 14
-                            FROM public.sales_master_consolidated_final cd2
+                            FROM public.sales_master_consolidated_final_test cd2
                             WHERE cd2.sub_category = cd.sub_category
                             AND cd2.category = %s
                             AND cd2.date BETWEEN %s AND %s
@@ -2478,7 +2478,7 @@ def get_platform_sales_subcategory_drilldown(request):
                         )
                         ELSE 0 
                     END AS last_14_days_avg
-                FROM public.sales_master_consolidated_final cd
+                FROM public.sales_master_consolidated_final_test cd
                 {where_clause}
                 GROUP BY sub_category
                 ORDER BY sub_category
@@ -2827,7 +2827,7 @@ def get_platform_sales_report(request):
                     category,
                     SUM(COALESCE(gmv, 0)) AS current_gmv,
                     SUM(COALESCE(units, 0)) AS current_units
-                FROM public.sales_master_consolidated_final
+                FROM public.sales_master_consolidated_final_test
                 {where_clause}
                 GROUP BY category
             """
@@ -2927,7 +2927,7 @@ def get_platform_sales_report(request):
                 platform_params.append(manufacturing_city)
             
             platform_where = " WHERE " + " AND ".join(platform_conditions) if platform_conditions else ""
-            platform_query = f"SELECT DISTINCT platform FROM public.sales_master_consolidated_final{platform_where} ORDER BY platform"
+            platform_query = f"SELECT DISTINCT platform FROM public.sales_master_consolidated_final_test{platform_where} ORDER BY platform"
             cursor.execute(platform_query, platform_params)
             platforms = [r[0] for r in cursor.fetchall()]
             
@@ -2959,7 +2959,7 @@ def get_platform_sales_report(request):
             
             city_conditions.append("sales_city IS NOT NULL")
             city_where = " WHERE " + " AND ".join(city_conditions)
-            city_query = f"SELECT DISTINCT sales_city FROM public.sales_master_consolidated_final{city_where} ORDER BY sales_city"
+            city_query = f"SELECT DISTINCT sales_city FROM public.sales_master_consolidated_final_test{city_where} ORDER BY sales_city"
             cursor.execute(city_query, city_params)
             cities = [r[0] for r in cursor.fetchall()]
 
@@ -2987,7 +2987,7 @@ def get_platform_sales_report(request):
             
             supply_conditions.append("supply_city IS NOT NULL")
             supply_where = " WHERE " + " AND ".join(supply_conditions)
-            supply_query = f"SELECT DISTINCT supply_city FROM public.sales_master_consolidated_final{supply_where} ORDER BY supply_city"
+            supply_query = f"SELECT DISTINCT supply_city FROM public.sales_master_consolidated_final_test{supply_where} ORDER BY supply_city"
             cursor.execute(supply_query, supply_params)
             supply_sources = [r[0] for r in cursor.fetchall()]
 
@@ -3008,7 +3008,7 @@ def get_platform_sales_report(request):
                 brand_params.append(manufacturing_city)
             
             # Always return full brand list regardless of other filters (consistent across tabs)
-            cursor.execute("SELECT DISTINCT brand FROM public.sales_master_consolidated_final WHERE brand IS NOT NULL ORDER BY brand")
+            cursor.execute("SELECT DISTINCT brand FROM public.sales_master_consolidated_final_test WHERE brand IS NOT NULL ORDER BY brand")
             brands = [r[0] for r in cursor.fetchall()]
             
             # Categories list for dropdown (with comprehensive cascading filter support)
@@ -3060,13 +3060,13 @@ def get_platform_sales_report(request):
 
             manufacturing_conditions.append("manufacture_city IS NOT NULL")
             manufacturing_where = " WHERE " + " AND ".join(manufacturing_conditions)
-            manufacturing_query = f"SELECT DISTINCT manufacture_city FROM public.sales_master_consolidated_final{manufacturing_where} ORDER BY manufacture_city"
+            manufacturing_query = f"SELECT DISTINCT manufacture_city FROM public.sales_master_consolidated_final_test{manufacturing_where} ORDER BY manufacture_city"
             cursor.execute(manufacturing_query, manufacturing_params)
             manufacturing_cities = [r[0] for r in cursor.fetchall()]
             
             category_conditions.append("category IS NOT NULL")
             category_where = " WHERE " + " AND ".join(category_conditions)
-            category_query = f"SELECT DISTINCT category FROM public.sales_master_consolidated_final{category_where} ORDER BY category"
+            category_query = f"SELECT DISTINCT category FROM public.sales_master_consolidated_final_test{category_where} ORDER BY category"
             cursor.execute(category_query, category_params)
             categories = [r[0] for r in cursor.fetchall()]
 
@@ -3231,7 +3231,7 @@ def get_sales_performance_weekly(request):
                         date AS d,
                         gmv,
                         units
-                    FROM public.sales_master_consolidated_final
+                    FROM public.sales_master_consolidated_final_test
                     {where_clause}
                 ), wk AS (
                     SELECT 
@@ -4048,7 +4048,7 @@ def get_inventory_movements(request):
                     """
                     SELECT column_name
                     FROM information_schema.columns
-                    WHERE table_schema = 'public' AND table_name = 'sales_master_consolidated_final'
+                    WHERE table_schema = 'public' AND table_name = 'sales_master_consolidated_final_test'
                     """
                 )
                 sales_columns = {r[0] for r in cursor.fetchall()}
@@ -4100,14 +4100,14 @@ def get_inventory_movements(request):
                             SELECT {s_platform} AS platform,
                                    {s_sku} AS sku,
                                    SUM(COALESCE({s_units}, 0))::FLOAT AS drr
-                            FROM public.sales_master_consolidated_final
+                            FROM public.sales_master_consolidated_final_test
                             {where_today}
                             GROUP BY {s_platform}, {s_sku}
                         ), drr_prev7 AS (
                             SELECT {s_platform} AS platform,
                                    {s_sku} AS sku,
                                    SUM(COALESCE({s_units}, 0))::FLOAT / 7.0 AS drr_avg
-                            FROM public.sales_master_consolidated_final
+                            FROM public.sales_master_consolidated_final_test
                             {where_prev}
                             GROUP BY {s_platform}, {s_sku}
                         ), joined AS (
