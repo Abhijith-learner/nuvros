@@ -76,6 +76,103 @@ const HygieneOverview = ({
           Coupon Rule = Live Coupon validation
         </div>
       </div>
+      <div className="stat-card">
+        <div className="stat-card-header">
+          <h3>Activation Hygiene Score</h3>
+        </div>
+        <div className="stat-card-value">
+          {hygieneScores && Object.prototype.hasOwnProperty.call(hygieneScores, 'activation_hygiene_score')
+            ? `${hygieneScores.activation_hygiene_score}%`
+            : '—'}
+        </div>
+        <div className="stat-card-description">
+          Avg Activation Hygiene across listings
+        </div>
+      </div>
+      <div className="stat-card">
+        <div className="stat-card-header">
+          <h3>Availability Hygiene Score</h3>
+        </div>
+        <div className="stat-card-value">
+          {hygieneScores?.availability_hygiene_score !== undefined
+            ? `${hygieneScores.availability_hygiene_score}%`
+            : '—'
+          }
+        </div>
+        <div className="stat-card-description">
+          Availability = Yes validation rate
+        </div>
+      </div>
+      <div className="stat-card">
+        <div className="stat-card-header">
+          <h3>Deal Hygiene Score</h3>
+        </div>
+        <div className="stat-card-value">
+          {hygieneScores?.deal_hygiene_score !== undefined
+            ? `${hygieneScores.deal_hygiene_score}%`
+            : '—'
+          }
+        </div>
+        <div className="stat-card-description">
+          Deal Tag = Yes validation rate
+        </div>
+      </div>
+      <div className="stat-card">
+        <div className="stat-card-header">
+          <h3>Rating Hygiene Score</h3>
+        </div>
+        <div className="stat-card-value">
+          {hygieneScores?.rating_hygiene_score !== undefined
+            ? `${hygieneScores.rating_hygiene_score}%`
+            : '—'
+          }
+        </div>
+        <div className="stat-card-description">
+          Average Rating Hygiene across listings
+        </div>
+      </div>
+      <div className="stat-card">
+        <div className="stat-card-header">
+          <h3>Catalog Hygiene Score</h3>
+        </div>
+        <div className="stat-card-value">
+          {hygieneScores?.catalog_hygiene_score !== undefined
+            ? `${hygieneScores.catalog_hygiene_score}%`
+            : '—'
+          }
+        </div>
+        <div className="stat-card-description">
+          Average Catalog Hygiene across listings
+        </div>
+      </div>
+      <div className="stat-card">
+        <div className="stat-card-header">
+          <h3>EDD Hygiene Score</h3>
+        </div>
+        <div className="stat-card-value">
+          {hygieneScores?.edd_hygiene_score !== undefined
+            ? `${hygieneScores.edd_hygiene_score}%`
+            : '—'
+          }
+        </div>
+        <div className="stat-card-description">
+          Average EDD Hygiene across listings
+        </div>
+      </div>
+      <div className="stat-card">
+        <div className="stat-card-header">
+          <h3>Sold By Validation Hygiene Score</h3>
+        </div>
+        <div className="stat-card-value">
+          {hygieneScores?.sold_by_validation_score !== undefined
+            ? `${hygieneScores.sold_by_validation_score}%`
+            : '—'
+          }
+        </div>
+        <div className="stat-card-description">
+          Sold By Validation = Yes validation rate
+        </div>
+      </div>
     </div>
   );
 

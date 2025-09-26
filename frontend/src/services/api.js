@@ -195,4 +195,48 @@ export const fetchHygieneOverview = async (filters = {}) => {
   return response.data;
 };
 
+// Trend Analysis - Fetch data from public.ecom_consolidated
+export const fetchTrendAnalysis = async (filters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.startDate) params.append('start_date', filters.startDate);
+  if (filters.endDate) params.append('end_date', filters.endDate);
+  if (filters.brand) params.append('brand', filters.brand);
+  if (filters.platform && filters.platform.length > 0) {
+    params.append('platform', filters.platform[0]); // Take first platform for trend analysis
+  }
+  // We don't need to specify metric1 and metric2 as the backend will return all relevant columns
+
+  const response = await api.get(`trend-analysis/?${params.toString()}`);
+  return response.data;
+};
+
+// Correlation Matrix - Fetch correlation data from public.ecom_consolidated
+export const fetchCorrelationMatrix = async (filters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.startDate) params.append('start_date', filters.startDate);
+  if (filters.endDate) params.append('end_date', filters.endDate);
+  if (filters.brand) params.append('brand', filters.brand);
+  if (filters.platform && filters.platform.length > 0) {
+    params.append('platform', filters.platform.join(','));
+  }
+
+  const response = await api.get(`correlation-matrix/?${params.toString()}`);
+  return response.data;
+};
+
+// Hygiene Table View - Fetch hygiene table data from public.ecom_consolidated
+export const fetchHygieneTable = async (filters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.startDate) params.append('start_date', filters.startDate);
+  if (filters.endDate) params.append('end_date', filters.endDate);
+  if (filters.brand) params.append('brand', filters.brand);
+  if (filters.platform && filters.platform.length > 0) {
+    params.append('platform', filters.platform.join(','));
+  }
+  if (filters.hygiene) params.append('hygiene', filters.hygiene);
+
+  const response = await api.get(`hygiene-table/?${params.toString()}`);
+  return response.data;
+};
+
 
