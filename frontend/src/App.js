@@ -23,10 +23,13 @@ import StockLevels from './features/inventory/StockLevels';
 import InventoryOverview from './features/inventory/InventoryOverview';
 import InventoryMovements from './features/inventory/InventoryMovements';
 import { modules, getCurrentTab } from './constants/modules';
-import { fetchPlatformSalesSubcategoryDrilldown, fetchAdsOverview, fetchAdsCategorySpends, fetchHygieneOverview } from './services/api';
+import { fetchPlatformSalesSubcategoryDrilldown, fetchAdsOverview, fetchAdsCategorySpends, fetchHygieneOverview, fetchHygieneTable, fetchTrendAnalysis, fetchCorrelationMatrix } from './services/api';
 import AdsOverview from './features/ads/AdsOverview';
 import CategorySpends from './features/ads/CategorySpends';
 import HygieneOverview from './features/hygiene/HygieneOverview';
+import HygieneTable from './features/hygiene/HygieneTable';
+import TrendAnalysis from './features/hygiene/TrendAnalysis';
+import CorrelationMatrix from './features/hygiene/CorrelationMatrix';
 
 function App() {
   const [authToken, setAuthToken] = useState(() => localStorage.getItem('token') || '');
@@ -391,7 +394,7 @@ function App() {
 
   // Hygiene Overview state
   const [hygieneData, setHygieneData] = useState([]);
-  const [hygieneScores, setHygieneScores] = useState({ price_hygiene_score: 0, coupon_hygiene_score: 0 });
+  const [hygieneScores, setHygieneScores] = useState({ price_hygiene_score: 0, coupon_hygiene_score: 0, activation_hygiene_score: 0 });
   const [hygieneLoading, setHygieneLoading] = useState(false);
   const [hygieneError, setHygieneError] = useState(null);
   const [hygieneStartDate, setHygieneStartDate] = useState(defaultMonthStart);
@@ -399,6 +402,29 @@ function App() {
   const [hygieneBrand, setHygieneBrand] = useState('');
   const [hygienePlatform, setHygienePlatform] = useState([]);
   const [hygieneOptions, setHygieneOptions] = useState({ brands: [], platforms: [] });
+
+  // Trend Analysis state
+  const [trendData, setTrendData] = useState([]);
+  const [trendLoading, setTrendLoading] = useState(false);
+  const [trendError, setTrendError] = useState(null);
+  const [trendStartDate, setTrendStartDate] = useState(defaultMonthStart);
+  const [trendEndDate, setTrendEndDate] = useState(defaultMonthEnd);
+  const [trendBrand, setTrendBrand] = useState('');
+  const [trendPlatform, setTrendPlatform] = useState([]);
+  const [trendMetric1, setTrendMetric1] = useState('GMV');
+  const [trendMetric2, setTrendMetric2] = useState('Live Price');
+  const [trendOptions, setTrendOptions] = useState({ brands: [], platforms: [] });
+
+  // Correlation Matrix state
+  const [correlationData, setCorrelationData] = useState([]);
+  const [correlationLoading, setCorrelationLoading] = useState(false);
+  const [correlationError, setCorrelationError] = useState(null);
+  const [correlationStartDate, setCorrelationStartDate] = useState(defaultMonthStart);
+  const [correlationEndDate, setCorrelationEndDate] = useState(defaultMonthEnd);
+  const [correlationBrand, setCorrelationBrand] = useState('');
+  const [correlationPlatform, setCorrelationPlatform] = useState([]);
+  const [correlationOptions, setCorrelationOptions] = useState({ brands: [], platforms: [] });
+
   const [catSpendOptions, setCatSpendOptions] = useState({ brands: [] });
 
   const fetchAds = async () => {
@@ -458,7 +484,8 @@ function App() {
       });
       if (res?.success) {
         setHygieneData(res.data || []);
-        setHygieneScores(res.hygiene_scores || { price_hygiene_score: 0, coupon_hygiene_score: 0 });
+        const defaultHygieneScores = { price_hygiene_score: 0, coupon_hygiene_score: 0, activation_hygiene_score: 0 };
+        setHygieneScores({ ...defaultHygieneScores, ...(res.hygiene_scores || {}) });
         setHygieneOptions(res.options || { brands: [], platforms: [] });
       } else {
         setHygieneError(res?.error || 'Failed to fetch');
@@ -467,6 +494,52 @@ function App() {
       setHygieneError(err.response?.data?.error || err.message);
     } finally {
       setHygieneLoading(false);
+    }
+  };
+
+  const fetchTrend = async () => {
+    try {
+      setTrendLoading(true);
+      setTrendError(null);
+      const res = await fetchTrendAnalysis({
+        startDate: trendStartDate,
+        endDate: trendEndDate,
+        brand: trendBrand,
+        platform: trendPlatform,
+      });
+      if (res?.success) {
+        setTrendData(res.data || []);
+        setTrendOptions(res.options || { brands: [], platforms: [] });
+      } else {
+        setTrendError(res?.error || 'Failed to fetch');
+      }
+    } catch (err) {
+      setTrendError(err.response?.data?.error || err.message);
+    } finally {
+      setTrendLoading(false);
+    }
+  };
+
+  const fetchCorrelation = async () => {
+    try {
+      setCorrelationLoading(true);
+      setCorrelationError(null);
+      const res = await fetchCorrelationMatrix({
+        startDate: correlationStartDate,
+        endDate: correlationEndDate,
+        brand: correlationBrand,
+        platform: correlationPlatform,
+      });
+      if (res?.success) {
+        setCorrelationData(res.data || []);
+        setCorrelationOptions(res.options || { brands: [], platforms: [] });
+      } else {
+        setCorrelationError(res?.error || 'Failed to fetch');
+      }
+    } catch (err) {
+      setCorrelationError(err.response?.data?.error || err.message);
+    } finally {
+      setCorrelationLoading(false);
     }
   };
 
@@ -515,6 +588,20 @@ function App() {
       fetchHygiene();
     }
   }, [activeTab, hygieneStartDate, hygieneEndDate, hygieneBrand, hygienePlatform, authToken]);
+
+  useEffect(() => {
+    if (!authToken) return;
+    if (activeTab === 'trend-analysis') {
+      fetchTrend();
+    }
+  }, [activeTab, trendStartDate, trendEndDate, trendBrand, trendPlatform, authToken]);
+
+  useEffect(() => {
+    if (!authToken) return;
+    if (activeTab === 'correlation-matrix') {
+      fetchCorrelation();
+    }
+  }, [activeTab, correlationStartDate, correlationEndDate, correlationBrand, correlationPlatform, authToken]);
 
   useEffect(() => {
     if (!authToken) return;
@@ -2972,6 +3059,52 @@ function App() {
                   if (Object.prototype.hasOwnProperty.call(next, 'platform')) setHygienePlatform(next.platform || []);
                 }}
                 onRefresh={fetchHygiene}
+              />
+            ) : activeTab === 'hygiene-table' ? (
+              <HygieneTable />
+            ) : activeTab === 'trend-analysis' ? (
+              <TrendAnalysis
+                data={trendData}
+                loading={trendLoading}
+                error={trendError}
+                filters={{
+                  startDate: trendStartDate,
+                  endDate: trendEndDate,
+                  brand: trendBrand,
+                  platform: trendPlatform,
+                  metric1: trendMetric1,
+                  metric2: trendMetric2,
+                }}
+                options={trendOptions}
+                onChangeFilters={(next) => {
+                  if (Object.prototype.hasOwnProperty.call(next, 'startDate')) setTrendStartDate(next.startDate);
+                  if (Object.prototype.hasOwnProperty.call(next, 'endDate')) setTrendEndDate(next.endDate);
+                  if (Object.prototype.hasOwnProperty.call(next, 'brand')) setTrendBrand(next.brand);
+                  if (Object.prototype.hasOwnProperty.call(next, 'platform')) setTrendPlatform(next.platform || []);
+                  if (Object.prototype.hasOwnProperty.call(next, 'metric1')) setTrendMetric1(next.metric1);
+                  if (Object.prototype.hasOwnProperty.call(next, 'metric2')) setTrendMetric2(next.metric2);
+                }}
+                onRefresh={fetchTrend}
+              />
+            ) : activeTab === 'correlation-matrix' ? (
+              <CorrelationMatrix
+                data={correlationData}
+                loading={correlationLoading}
+                error={correlationError}
+                filters={{
+                  startDate: correlationStartDate,
+                  endDate: correlationEndDate,
+                  brand: correlationBrand,
+                  platform: correlationPlatform,
+                }}
+                options={correlationOptions}
+                onChangeFilters={(next) => {
+                  if (Object.prototype.hasOwnProperty.call(next, 'startDate')) setCorrelationStartDate(next.startDate);
+                  if (Object.prototype.hasOwnProperty.call(next, 'endDate')) setCorrelationEndDate(next.endDate);
+                  if (Object.prototype.hasOwnProperty.call(next, 'brand')) setCorrelationBrand(next.brand);
+                  if (Object.prototype.hasOwnProperty.call(next, 'platform')) setCorrelationPlatform(next.platform || []);
+                }}
+                onRefresh={fetchCorrelation}
               />
             ) : (
               <div className="dashboard-container">

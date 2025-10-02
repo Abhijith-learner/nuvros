@@ -8,9 +8,12 @@ from datetime import datetime, date, timedelta
 import calendar
 from django.utils.crypto import pbkdf2
 import os
+import logging
 
 from .models import AppUser
 from .auth import generate_jwt, require_auth, refresh_jwt
+
+logger = logging.getLogger(__name__)
 
 @api_view(['GET'])
 @require_auth
@@ -4232,10 +4235,15 @@ def get_hygiene_overview(request):
                         'platform': 'Amazon',
                         'price_rule': 'Standard',
                         'live_price': 299.00,
-                        'price_validation': True,
-                        'coupon_rule': '10% Off',
-                        'live_coupon': '10% Off',
-                        'coupon_validation': True
+                        'price_hygiene': '100%',
+                        'coupon_hygiene': '95%',
+                        'activation_hygiene': '100%',
+                        'availability_hygiene': '98%',
+                        'deal_hygiene': '100%',
+                        'edd_hygiene': '95%',
+                        'sold_by_validation': '90%',
+                        'rating_hygiene': '90%',
+                        'catalog_hygiene': '88%'
                     },
                     {
                         'date': '2024-01-15',
@@ -4243,10 +4251,15 @@ def get_hygiene_overview(request):
                         'platform': 'Flipkart',
                         'price_rule': 'Standard',
                         'live_price': 299.00,
-                        'price_validation': True,
-                        'coupon_rule': '10% Off',
-                        'live_coupon': '15% Off',
-                        'coupon_validation': False
+                        'price_hygiene': '85%',
+                        'coupon_hygiene': '75%',
+                        'activation_hygiene': '50%',
+                        'availability_hygiene': '60%',
+                        'deal_hygiene': '45%',
+                        'edd_hygiene': '80%',
+                        'sold_by_validation': '95%',
+                        'rating_hygiene': '75%',
+                        'catalog_hygiene': '82%'
                     },
                     {
                         'date': '2024-01-16',
@@ -4254,27 +4267,67 @@ def get_hygiene_overview(request):
                         'platform': 'Amazon',
                         'price_rule': 'Premium',
                         'live_price': 350.00,
-                        'price_validation': False,
-                        'coupon_rule': '10% Off',
-                        'live_coupon': '10% Off',
-                        'coupon_validation': True
+                        'price_hygiene': '70%',
+                        'coupon_hygiene': '88%',
+                        'activation_hygiene': '0%',
+                        'availability_hygiene': '92%',
+                        'deal_hygiene': '100%',
+                        'edd_hygiene': '70%',
+                        'sold_by_validation': '60%',
+                        'rating_hygiene': '85%',
+                        'catalog_hygiene': '78%'
                     }
                 ]
 
-                # Calculate hygiene scores
-                total_records = len(mock_data)
-                price_valid_count = sum(1 for record in mock_data if record['price_validation'])
-                coupon_valid_count = sum(1 for record in mock_data if record['coupon_validation'])
-                
-                price_hygiene_score = (price_valid_count / total_records * 100) if total_records > 0 else 0
-                coupon_hygiene_score = (coupon_valid_count / total_records * 100) if total_records > 0 else 0
+                # Calculate hygiene scores from percentage values
+                def calculate_average_percentage_hygiene_mock(column_name):
+                    """Calculate average of percentage values from a column (e.g., '100%', '50%', '0%')"""
+                    values = []
+                    for record in mock_data:
+                        hygiene_value = record.get(column_name, '')
+                        if hygiene_value and isinstance(hygiene_value, str):
+                            try:
+                                # Handle common error strings
+                                clean_value = hygiene_value.strip()
+                                if clean_value in ['#ERROR!', 'N/A', 'NULL', 'null', '']:
+                                    continue
+
+                                # Remove % and convert to float
+                                if '%' in clean_value:
+                                    numeric_value = float(clean_value.replace('%', '').strip())
+                                else:
+                                    numeric_value = float(clean_value)
+                                values.append(numeric_value)
+                            except (ValueError, AttributeError):
+                                # Skip invalid values
+                                continue
+                    logger.debug(f"Mock {column_name} values: %s", values)
+                    return (sum(values) / len(values)) if values else 0
+
+                # Calculate all hygiene scores using the general function
+                price_hygiene_score = calculate_average_percentage_hygiene_mock('price_hygiene')
+                coupon_hygiene_score = calculate_average_percentage_hygiene_mock('coupon_hygiene')
+                activation_hygiene_score = calculate_average_percentage_hygiene_mock('activation_hygiene')
+                availability_hygiene_score = calculate_average_percentage_hygiene_mock('availability_hygiene')
+                deal_hygiene_score = calculate_average_percentage_hygiene_mock('deal_hygiene')
+                edd_hygiene_score = calculate_average_percentage_hygiene_mock('edd_hygiene')
+                rating_hygiene_score = calculate_average_percentage_hygiene_mock('rating_hygiene')
+                catalog_hygiene_score = calculate_average_percentage_hygiene_mock('catalog_hygiene')
+                sold_by_validation_score = calculate_average_percentage_hygiene_mock('sold_by_validation')
 
                 return Response({
                     'success': True,
                     'data': mock_data,
                     'hygiene_scores': {
                         'price_hygiene_score': round(price_hygiene_score, 2),
-                        'coupon_hygiene_score': round(coupon_hygiene_score, 2)
+                        'coupon_hygiene_score': round(coupon_hygiene_score, 2),
+                        'availability_hygiene_score': round(availability_hygiene_score, 2),
+                        'deal_hygiene_score': round(deal_hygiene_score, 2),
+                        'activation_hygiene_score': round(activation_hygiene_score, 2),
+                        'edd_hygiene_score': round(edd_hygiene_score, 2),
+                        'rating_hygiene_score': round(rating_hygiene_score, 2),
+                        'catalog_hygiene_score': round(catalog_hygiene_score, 2),
+                        'sold_by_validation_score': round(sold_by_validation_score, 2)
                     },
                     'options': {
                         'brands': ['Clear', 'Dove', 'Pantene'],
@@ -4322,16 +4375,21 @@ def get_hygiene_overview(request):
 
             # Query the actual data
             query = f"""
-                SELECT 
+                SELECT
                     "Date",
                     "Brand",
                     "Platform",
                     "Price Rule",
                     "Live Price",
-                    "Price Validation",
-                    "Coupon Rule",
-                    "Live Coupon",
-                    "Coupon Validation"
+                    "Price_Hygiene",
+                    "Coupon_Hygiene",
+                    "Activation_Hygiene",
+                    "Availability_Hygiene",
+                    "Deal_Hygiene",
+                    "EDD_Hygiene",
+                    "Sold By Validation",
+                    "Rating_Hygiene",
+                    "Catalog_Hygiene"
                 FROM public.ecom_consolidated
                 {where_clause}
                 ORDER BY "Date" DESC, "Platform", "Brand"
@@ -4344,13 +4402,52 @@ def get_hygiene_overview(request):
             # Convert to list of dictionaries
             data = [dict(zip(columns, row)) for row in rows]
 
-            # Calculate hygiene scores
-            total_records = len(data)
-            price_valid_count = sum(1 for record in data if record.get('Price Validation', False))
-            coupon_valid_count = sum(1 for record in data if record.get('Coupon Validation', False))
-            
-            price_hygiene_score = (price_valid_count / total_records * 100) if total_records > 0 else 0
-            coupon_hygiene_score = (coupon_valid_count / total_records * 100) if total_records > 0 else 0
+            # Filter out rows with too many invalid values
+            def is_valid_row(row):
+                error_count = 0
+                for col in ['Price_Hygiene', 'Coupon_Hygiene', 'Activation_Hygiene', 'Availability_Hygiene', 'Deal_Hygiene', 'EDD_Hygiene', 'Sold By Validation', 'Rating_Hygiene', 'Catalog_Hygiene']:
+                    value = row.get(col, '')
+                    if isinstance(value, str) and value.strip() in ['#ERROR!', 'N/A', 'NULL', 'null', '']:
+                        error_count += 1
+                # Allow rows with up to 3 invalid values
+                return error_count <= 3
+
+            data = [row for row in data if is_valid_row(row)]
+
+            # General function to calculate average of percentage-based hygiene scores
+            def calculate_average_percentage_hygiene(column_name):
+                """Calculate average of percentage values from a column (e.g., '100%', '50%', '0%')"""
+                values = []
+                for record in data:
+                    hygiene_value = record.get(column_name, '')
+                    if hygiene_value and isinstance(hygiene_value, str):
+                        try:
+                            # Handle common error strings
+                            clean_value = hygiene_value.strip()
+                            if clean_value in ['#ERROR!', 'N/A', 'NULL', 'null', '']:
+                                continue
+
+                            # Remove % and convert to float
+                            if '%' in clean_value:
+                                numeric_value = float(clean_value.replace('%', '').strip())
+                            else:
+                                numeric_value = float(clean_value)
+                            values.append(numeric_value)
+                        except (ValueError, AttributeError):
+                            # Skip invalid values
+                            continue
+                return (sum(values) / len(values)) if values else 0
+
+            # Calculate all hygiene scores using the general function
+            price_hygiene_score = calculate_average_percentage_hygiene('Price_Hygiene')
+            coupon_hygiene_score = calculate_average_percentage_hygiene('Coupon_Hygiene')
+            activation_hygiene_score = calculate_average_percentage_hygiene('Activation_Hygiene')
+            availability_hygiene_score = calculate_average_percentage_hygiene('Availability_Hygiene')
+            deal_hygiene_score = calculate_average_percentage_hygiene('Deal_Hygiene')
+            edd_hygiene_score = calculate_average_percentage_hygiene('EDD_Hygiene')
+            rating_hygiene_score = calculate_average_percentage_hygiene('Rating_Hygiene')
+            catalog_hygiene_score = calculate_average_percentage_hygiene('Catalog_Hygiene')
+            sold_by_validation_score = calculate_average_percentage_hygiene('Sold By Validation')
 
             # Get unique brands and platforms for filter options
             cursor.execute('SELECT DISTINCT "Brand" FROM public.ecom_consolidated WHERE "Brand" IS NOT NULL ORDER BY "Brand"')
@@ -4364,8 +4461,755 @@ def get_hygiene_overview(request):
                 'data': data,
                 'hygiene_scores': {
                     'price_hygiene_score': round(price_hygiene_score, 2),
-                    'coupon_hygiene_score': round(coupon_hygiene_score, 2)
+                    'coupon_hygiene_score': round(coupon_hygiene_score, 2),
+                    'availability_hygiene_score': round(availability_hygiene_score, 2),
+                    'deal_hygiene_score': round(deal_hygiene_score, 2),
+                    'activation_hygiene_score': round(activation_hygiene_score, 2),
+                    'edd_hygiene_score': round(edd_hygiene_score, 2),
+                    'rating_hygiene_score': round(rating_hygiene_score, 2),
+                    'catalog_hygiene_score': round(catalog_hygiene_score, 2),
+                    'sold_by_validation_score': round(sold_by_validation_score, 2)
                 },
+                'options': {
+                    'brands': brands,
+                    'platforms': platforms
+                }
+            })
+
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@require_auth
+def get_trend_analysis(request):
+    """
+    Trend Analysis data sourced from public.ecom_consolidated table.
+
+    Returns time-series data for selected metrics with optional filtering.
+
+    Query params:
+    - start_date: YYYY-MM-DD (optional)
+    - end_date: YYYY-MM-DD (optional)
+    - brand: optional brand filter
+    - platform: optional platform filter (single platform)
+    """
+    try:
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        brand = request.query_params.get('brand')
+        platform = request.query_params.get('platform')
+
+        with connection.cursor() as cursor:
+            # Check if ecom_consolidated table exists
+            cursor.execute(
+                """
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                    AND table_name = 'ecom_consolidated'
+                );
+                """
+            )
+            table_exists = cursor.fetchone()[0]
+
+            if not table_exists:
+                # Return mock trend data for development
+                mock_trend_data = [
+                    {
+                        'Date': '01-01-2024',
+                        'Brand': 'Clear',
+                        'Platform': 'Amazon',
+                        'Live Price': 299.00,
+                        'Sub-Category BSR': 150.0,
+                        'Category BSR': 450.0,
+                        'GMV': 15000.00,
+                        'Units': 50,
+                        'Discount': 10.00
+                    },
+                    {
+                        'Date': '02-01-2024',
+                        'Brand': 'Clear',
+                        'Platform': 'Amazon',
+                        'Live Price': 295.00,
+                        'Sub-Category BSR': 145.0,
+                        'Category BSR': 440.0,
+                        'GMV': 17700.00,
+                        'Units': 60,
+                        'Discount': 12.00
+                    },
+                    {
+                        'Date': '03-01-2024',
+                        'Brand': 'Clear',
+                        'Platform': 'Amazon',
+                        'Live Price': 301.00,
+                        'Sub-Category BSR': 155.0,
+                        'Category BSR': 460.0,
+                        'GMV': 13800.00,
+                        'Units': 46,
+                        'Discount': 8.00
+                    },
+                    {
+                        'Date': '04-01-2024',
+                        'Brand': 'Clear',
+                        'Platform': 'Amazon',
+                        'Live Price': 298.00,
+                        'Sub-Category BSR': 148.0,
+                        'Category BSR': 445.0,
+                        'GMV': 16200.00,
+                        'Units': 54,
+                        'Discount': 11.00
+                    },
+                    {
+                        'Date': '05-01-2024',
+                        'Brand': 'Clear',
+                        'Platform': 'Amazon',
+                        'Live Price': 302.00,
+                        'Sub-Category BSR': 152.0,
+                        'Category BSR': 455.0,
+                        'GMV': 18600.00,
+                        'Units': 62,
+                        'Discount': 9.00
+                    }
+                ]
+
+                return Response({
+                    'success': True,
+                    'data': mock_trend_data,
+                    'options': {
+                        'brands': ['Clear', 'Dove', 'Pantene'],
+                        'platforms': ['Amazon', 'Flipkart', 'Myntra']
+                    }
+                })
+
+            # If table exists, query actual data
+            where_parts = []
+            params = []
+
+            if start_date:
+                # Convert YYYY-MM-DD to DD-MM-YYYY for database comparison
+                try:
+                    start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+                    start_date_formatted = start_date_obj.strftime('%d-%m-%Y')
+                    where_parts.append('"Date" >= %s')
+                    params.append(start_date_formatted)
+                except ValueError:
+                    # If conversion fails, use original date
+                    where_parts.append('"Date" >= %s')
+                    params.append(start_date)
+            if end_date:
+                # Convert YYYY-MM-DD to DD-MM-YYYY for database comparison
+                try:
+                    end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
+                    end_date_formatted = end_date_obj.strftime('%d-%m-%Y')
+                    where_parts.append('"Date" <= %s')
+                    params.append(end_date_formatted)
+                except ValueError:
+                    # If conversion fails, use original date
+                    where_parts.append('"Date" <= %s')
+                    params.append(end_date)
+            if brand:
+                where_parts.append('"Brand" = %s')
+                params.append(brand)
+            if platform:
+                where_parts.append('"Platform" = %s')
+                params.append(platform)
+
+            where_clause = ' WHERE ' + ' AND '.join(where_parts) if where_parts else ''
+
+            # Query the actual data with all relevant metrics
+            query = f"""
+                SELECT
+                    "Date",
+                    "Brand",
+                    "Platform",
+                    "Live Price",
+                    "Sub-Category BSR",
+                    "Category BSR",
+                    "GMV",
+                    "Units",
+                    "Discount"
+                FROM public.ecom_consolidated
+                {where_clause}
+                ORDER BY "Date" ASC
+            """
+
+            cursor.execute(query, params)
+            columns = [col[0] for col in cursor.description]
+            rows = cursor.fetchall()
+
+            # Convert rows to list of dictionaries
+            data = []
+            for row in rows:
+                row_dict = dict(zip(columns, row))
+                # Handle any data types that might not be JSON serializable
+                for key, value in row_dict.items():
+                    if hasattr(value, 'isoformat'):  # datetime objects
+                        row_dict[key] = value.isoformat()
+                data.append(row_dict)
+
+            # Get unique brands and platforms for filter options
+            brands = []
+            platforms = []
+            if data:
+                brands = list(set([record.get('Brand', '') for record in data if record.get('Brand')]))
+                platforms = list(set([record.get('Platform', '') for record in data if record.get('Platform')]))
+                brands.sort()
+                platforms.sort()
+
+            return Response({
+                'success': True,
+                'data': data,
+                'options': {
+                    'brands': brands,
+                    'platforms': platforms
+                }
+            })
+
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@require_auth
+def get_correlation_matrix(request):
+    """
+    Correlation Matrix data sourced from public.ecom_consolidated table.
+
+    Returns correlation data between hygiene metrics and business performance indicators.
+
+    Query params:
+    - start_date: YYYY-MM-DD (optional)
+    - end_date: YYYY-MM-DD (optional)
+    - brand: optional brand filter
+    - platform: optional platform filter (comma-separated for multiple)
+    """
+    try:
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        brand = request.query_params.get('brand')
+        platform = request.query_params.get('platform')
+
+        with connection.cursor() as cursor:
+            # Check if ecom_consolidated table exists
+            cursor.execute(
+                """
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                    AND table_name = 'ecom_consolidated'
+                );
+                """
+            )
+            table_exists = cursor.fetchone()[0]
+
+            if not table_exists:
+                # Return mock correlation data for development
+                mock_correlation_data = [
+                    {
+                        'Date': '2024-01-15',
+                        'Brand': 'Clear',
+                        'Platform': 'Amazon',
+                        'Price_Hygiene': '100%',
+                        'Coupon_Hygiene': '95%',
+                        'Activation_Hygiene': '100%',
+                        'Availability_Hygiene': '98%',
+                        'Deal_Hygiene': '100%',
+                        'EDD_Hygiene': '95%',
+                        'Sold By Validation': '90%',
+                        'Rating_Hygiene': '90%',
+                        'Catalog_Hygiene': '88%',
+                        'GMV': '15000.00',
+                        'Units': '50'
+                    },
+                    {
+                        'Date': '2024-01-15',
+                        'Brand': 'Clear',
+                        'Platform': 'Flipkart',
+                        'Price_Hygiene': '85%',
+                        'Coupon_Hygiene': '75%',
+                        'Activation_Hygiene': '50%',
+                        'Availability_Hygiene': '60%',
+                        'Deal_Hygiene': '45%',
+                        'EDD_Hygiene': '80%',
+                        'Sold By Validation': '95%',
+                        'Rating_Hygiene': '75%',
+                        'Catalog_Hygiene': '82%',
+                        'GMV': '12000.00',
+                        'Units': '40'
+                    },
+                    {
+                        'Date': '2024-01-16',
+                        'Brand': 'Clear',
+                        'Platform': 'Amazon',
+                        'Price_Hygiene': '70%',
+                        'Coupon_Hygiene': '88%',
+                        'Activation_Hygiene': '0%',
+                        'Availability_Hygiene': '92%',
+                        'Deal_Hygiene': '100%',
+                        'EDD_Hygiene': '70%',
+                        'Sold By Validation': '60%',
+                        'Rating_Hygiene': '85%',
+                        'Catalog_Hygiene': '78%',
+                        'GMV': '18000.00',
+                        'Units': '60'
+                    }
+                ]
+
+                # Define the columns for correlation analysis
+                mock_correlation_columns = [
+                    'Price_Hygiene',
+                    'Coupon_Hygiene',
+                    'Activation_Hygiene',
+                    'Availability_Hygiene',
+                    'Deal_Hygiene',
+                    'EDD_Hygiene',
+                    'Sold By Validation',
+                    'Rating_Hygiene',
+                    'Catalog_Hygiene',
+                    'GMV',
+                    'Units'
+                ]
+
+                # Calculate correlation matrix from mock data
+                correlation_data = calculate_correlation_from_data(mock_correlation_data, mock_correlation_columns)
+
+                # Get unique brands and platforms for filter options
+                brands = list(set([record.get('Brand', '') for record in mock_correlation_data if record.get('Brand')]))
+                platforms = list(set([record.get('Platform', '') for record in mock_correlation_data if record.get('Platform')]))
+                brands.sort()
+                platforms.sort()
+
+                return Response({
+                    'success': True,
+                    'data': correlation_data,
+                    'options': {
+                        'brands': brands,
+                        'platforms': platforms
+                    }
+                })
+
+            # If table exists, query actual data
+            where_parts = []
+            params = []
+
+            if start_date:
+                # Convert YYYY-MM-DD to DD-MM-YYYY for database comparison
+                try:
+                    start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+                    start_date_formatted = start_date_obj.strftime('%d-%m-%Y')
+                    where_parts.append('"Date" >= %s')
+                    params.append(start_date_formatted)
+                except ValueError:
+                    # If conversion fails, use original date
+                    where_parts.append('"Date" >= %s')
+                    params.append(start_date)
+            if end_date:
+                # Convert YYYY-MM-DD to DD-MM-YYYY for database comparison
+                try:
+                    end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
+                    end_date_formatted = end_date_obj.strftime('%d-%m-%Y')
+                    where_parts.append('"Date" <= %s')
+                    params.append(end_date_formatted)
+                except ValueError:
+                    # If conversion fails, use original date
+                    where_parts.append('"Date" <= %s')
+                    params.append(end_date)
+            if brand:
+                where_parts.append('"Brand" = %s')
+                params.append(brand)
+            if platform:
+                platforms = [p.strip() for p in platform.split(',') if p.strip()]
+                if platforms:
+                    placeholders = ','.join(['%s'] * len(platforms))
+                    where_parts.append(f'"Platform" IN ({placeholders})')
+                    params.extend(platforms)
+
+            where_clause = ' WHERE ' + ' AND '.join(where_parts) if where_parts else ''
+
+            # Query the actual data
+            query = f"""
+                SELECT
+                    "Date",
+                    "Brand",
+                    "Platform",
+                    "Price_Hygiene",
+                    "Coupon_Hygiene",
+                    "Activation_Hygiene",
+                    "Availability_Hygiene",
+                    "Deal_Hygiene",
+                    "EDD_Hygiene",
+                    "Sold By Validation",
+                    "Rating_Hygiene",
+                    "Catalog_Hygiene",
+                    "GMV",
+                    "Units"
+                FROM public.ecom_consolidated
+                {where_clause}
+                ORDER BY "Date" DESC, "Platform", "Brand"
+            """
+
+            cursor.execute(query, params)
+            columns = [col[0] for col in cursor.description]
+            rows = cursor.fetchall()
+
+            # Convert to list of dictionaries
+            data = [dict(zip(columns, row)) for row in rows]
+
+            # Define the columns for correlation analysis
+            correlation_columns = [
+                'Price_Hygiene',
+                'Coupon_Hygiene',
+                'Activation_Hygiene',
+                'Availability_Hygiene',
+                'Deal_Hygiene',
+                'EDD_Hygiene',
+                'Sold By Validation',
+                'Rating_Hygiene',
+                'Catalog_Hygiene',
+                'GMV',
+                'Units'
+            ]
+
+            # Filter out rows with too many invalid values
+            def is_valid_row(row):
+                error_count = 0
+                for col in correlation_columns:
+                    value = row.get(col, '')
+                    if isinstance(value, str) and value.strip() in ['#ERROR!', 'N/A', 'NULL', 'null', '']:
+                        error_count += 1
+                # Allow rows with up to 2 invalid values
+                return error_count <= 2
+
+            data = [row for row in data if is_valid_row(row)]
+
+            # Calculate correlation matrix
+            correlation_data = calculate_correlation_from_data(data, correlation_columns)
+
+            # Get unique brands and platforms for filter options
+            brands = []
+            platforms = []
+            if data:
+                brands = list(set([record.get('Brand', '') for record in data if record.get('Brand')]))
+                platforms = list(set([record.get('Platform', '') for record in data if record.get('Platform')]))
+                brands.sort()
+                platforms.sort()
+
+            return Response({
+                'success': True,
+                'data': correlation_data,
+                'options': {
+                    'brands': brands,
+                    'platforms': platforms
+                }
+            })
+
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+def calculate_correlation_from_data(data, correlation_columns):
+    """
+    Calculate correlation matrix from the given data.
+
+    Args:
+        data: List of dictionaries containing the raw data
+        correlation_columns: List of column names to analyze
+
+    Returns:
+        List of dictionaries representing the correlation matrix
+    """
+    if not data or len(data) < 2:
+        # Return empty matrix if insufficient data
+        return []
+
+    # Convert data to numeric format (all columns are percentages 0-100%)
+    numeric_data = []
+    for item in data:
+        numeric_item = {}
+        for col in correlation_columns:
+            # All columns are percentage values (0-100%)
+            hygiene_value = item.get(col, '')
+            try:
+                # Handle common error strings
+                if isinstance(hygiene_value, str):
+                    clean_value = hygiene_value.strip()
+                    if clean_value in ['#ERROR!', 'N/A', 'NULL', 'null', '']:
+                        numeric_item[col] = 0  # Default to 0 for invalid values
+                        continue
+
+                    # Remove % and convert to float
+                    if '%' in clean_value:
+                        numeric_value = float(clean_value.replace('%', '').strip())
+                    else:
+                        numeric_value = float(clean_value)
+                else:
+                    numeric_value = float(hygiene_value) if hygiene_value else 0
+
+                # Convert to 0-1 range (percentages are 0-100, so divide by 100)
+                numeric_item[col] = numeric_value / 100
+            except (ValueError, AttributeError, TypeError):
+                # Skip invalid values, use 0 as default
+                numeric_item[col] = 0
+
+        numeric_data.append(numeric_item)
+
+    # Calculate correlation matrix
+    correlation_matrix = {}
+    n = len(correlation_columns)
+
+    for i in range(n):
+        col1 = correlation_columns[i]
+        correlation_matrix[col1] = {}
+
+        for j in range(n):
+            col2 = correlation_columns[j]
+
+            if i == j:
+                correlation_matrix[col1][col2] = 1.0
+            else:
+                # Get values for correlation calculation
+                values1 = [item[col1] for item in numeric_data if col1 in item]
+                values2 = [item[col2] for item in numeric_data if col2 in item]
+
+                if len(values1) < 2 or len(values2) < 2:
+                    correlation_matrix[col1][col2] = 0.0
+                    continue
+
+                # Calculate Pearson correlation coefficient
+                mean1 = sum(values1) / len(values1)
+                mean2 = sum(values2) / len(values2)
+
+                numerator = sum((x - mean1) * (y - mean2) for x, y in zip(values1, values2))
+                denominator1 = (sum((x - mean1) ** 2 for x in values1)) ** 0.5
+                denominator2 = (sum((y - mean2) ** 2 for y in values2)) ** 0.5
+
+                if denominator1 == 0 or denominator2 == 0:
+                    correlation_matrix[col1][col2] = 0.0
+                else:
+                    correlation_matrix[col1][col2] = numerator / (denominator1 * denominator2)
+
+    # Convert to list of dictionaries for frontend consumption
+    result = []
+    for row_col in correlation_columns:
+        row_data = {'metric': row_col}
+        for col_col in correlation_columns:
+            row_data[col_col] = round(correlation_matrix[row_col][col_col], 3)
+        result.append(row_data)
+
+    return result
+
+
+@api_view(['GET'])
+@require_auth
+def get_hygiene_table_data(request):
+    """
+    Hygiene Table View data sourced from public.ecom_consolidated table.
+
+    Returns detailed hygiene data with hygiene-specific columns based on selected hygiene type.
+
+    Query params:
+    - start_date: YYYY-MM-DD (optional)
+    - end_date: YYYY-MM-DD (optional)
+    - brand: optional brand filter
+    - platform: optional platform filter (comma-separated for multiple)
+    - hygiene: optional hygiene filter (specific hygiene type or 'All')
+    """
+    try:
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        brand = request.query_params.get('brand')
+        platform = request.query_params.get('platform')
+        hygiene = request.query_params.get('hygiene', 'All')
+
+        with connection.cursor() as cursor:
+            # Check if ecom_consolidated table exists
+            cursor.execute(
+                """
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                    AND table_name = 'ecom_consolidated'
+                );
+                """
+            )
+            table_exists = cursor.fetchone()[0]
+
+            if not table_exists:
+                # Return mock data structure for development - using actual database column names
+                mock_data = [
+                    {
+                        'Date': '2024-01-15',
+                        'Brand': 'Clear',
+                        'Platform': 'Amazon',
+                        'Price Rule': 'Standard',
+                        'Live Price': 299.00,
+                        'Price_Hygiene': '100%',
+                        'Coupon_Hygiene': '95%',
+                        'Activation_Hygiene': '100%',
+                        'Availability_Hygiene': '98%',
+                        'Deal_Hygiene': '100%',
+                        'EDD_Hygiene': '95%',
+                        'Sold By Validation': '90%',
+                        'Rating_Hygiene': '90%',
+                        'Catalog_Hygiene': '88%'
+                    },
+                    {
+                        'Date': '2024-01-15',
+                        'Brand': 'Clear',
+                        'Platform': 'Flipkart',
+                        'Price Rule': 'Standard',
+                        'Live Price': 299.00,
+                        'Price_Hygiene': '85%',
+                        'Coupon_Hygiene': '75%',
+                        'Activation_Hygiene': '50%',
+                        'Availability_Hygiene': '60%',
+                        'Deal_Hygiene': '45%',
+                        'EDD_Hygiene': '80%',
+                        'Sold By Validation': '95%',
+                        'Rating_Hygiene': '75%',
+                        'Catalog_Hygiene': '82%'
+                    },
+                    {
+                        'Date': '2024-01-16',
+                        'Brand': 'Clear',
+                        'Platform': 'Amazon',
+                        'Price Rule': 'Premium',
+                        'Live Price': 350.00,
+                        'Price_Hygiene': '70%',
+                        'Coupon_Hygiene': '88%',
+                        'Activation_Hygiene': '0%',
+                        'Availability_Hygiene': '92%',
+                        'Deal_Hygiene': '100%',
+                        'EDD_Hygiene': '70%',
+                        'Sold By Validation': '60%',
+                        'Rating_Hygiene': '85%',
+                        'Catalog_Hygiene': '78%'
+                    }
+                ]
+
+                # Get unique brands and platforms for filter options
+                brands = list(set([record.get('Brand', '') for record in mock_data if record.get('Brand')]))
+                platforms = list(set([record.get('Platform', '') for record in mock_data if record.get('Platform')]))
+                brands.sort()
+                platforms.sort()
+
+                return Response({
+                    'success': True,
+                    'data': mock_data,
+                    'hygiene_columns': hygiene_columns_map,
+                    'options': {
+                        'brands': brands,
+                        'platforms': platforms
+                    }
+                })
+
+            # Define hygiene-specific columns mapping - full set as requested
+            hygiene_columns_map = {
+                'Price Hygiene': ['Price Rule', 'Live Price', 'Price Validation', 'Price_Hygiene'],
+                'Coupon Hygiene': ['Coupon Rule', 'Live Coupon', 'Coupon Validation', 'Coupon_Hygiene'],
+                'Activation_Hygiene': ['SNS Rule', 'Live SNS', 'SNS Validation', 'BXGY Rule', 'Live BXGY', 'BXGY Validation', 'Activation_Hygiene'],
+                'Availability Hygiene': ['Availability', 'Availability_Hygiene'],
+                'Deal Hygiene': ['Deal Tag', 'Deal_Hygiene'],
+                'EDD Hygiene': ['EDD_400013', 'EDD_600005', 'EDD_122102', 'EDD_700016', 'EDD_560068', 'EDD_Hygiene'],
+                'Sold By Validation': ['Sold By 1_400013', 'Sold By 1_600005', 'Sold By 1_122102', 'Sold By 1_700016', 'Sold By 1_560068', 'Sold By 2_400013', 'Sold By 2_600005', 'Sold By 2_122102', 'Sold By 2_700016', 'Sold By 2_560068', 'Sold By 3_400013', 'Sold By 3_600005', 'Sold By 3_122102', 'Sold By 3_700016', 'Sold By 3_560068', 'Sold By Validation'],
+                'Rating Hygiene': ['3 Star Ratings', '2 Star Ratings', '1 Star Ratings', 'Total Ratings', 'Ratings', 'Rating_Hygiene'],
+                'Catalog_Hygiene': ['Ratings', 'Sub-Category BSR', 'Category BSR', 'Number of Other Sellers', 'Title Length', 'Bullet Point Count', 'Videos Count', 'Images Count', 'A+', 'Catalog_Hygiene']
+            }
+
+            # Common columns that are always displayed
+            common_columns = [
+                'Date', 'Brand', 'Platform', 'SKU Code', 'ASIN', 'Generic Title',
+                'Category', 'Sub-category', 'GMV', 'Units'
+            ]
+
+            # Build dynamic column list based on hygiene type
+            selected_columns = common_columns.copy()
+            if hygiene == 'All':
+                # Include all hygiene-specific columns
+                for hygiene_type, columns in hygiene_columns_map.items():
+                    selected_columns.extend(columns)
+            elif hygiene in hygiene_columns_map:
+                # Include only columns for selected hygiene type
+                selected_columns.extend(hygiene_columns_map[hygiene])
+
+            # Build where clause
+            where_parts = []
+            params = []
+
+            if start_date:
+                # Convert YYYY-MM-DD to DD-MM-YYYY for database comparison
+                try:
+                    start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+                    start_date_formatted = start_date_obj.strftime('%d-%m-%Y')
+                    where_parts.append('"Date" >= %s')
+                    params.append(start_date_formatted)
+                except ValueError:
+                    # If conversion fails, use original date
+                    where_parts.append('"Date" >= %s')
+                    params.append(start_date)
+            if end_date:
+                # Convert YYYY-MM-DD to DD-MM-YYYY for database comparison
+                try:
+                    end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
+                    end_date_formatted = end_date_obj.strftime('%d-%m-%Y')
+                    where_parts.append('"Date" <= %s')
+                    params.append(end_date_formatted)
+                except ValueError:
+                    # If conversion fails, use original date
+                    where_parts.append('"Date" <= %s')
+                    params.append(end_date)
+            if brand:
+                where_parts.append('"Brand" = %s')
+                params.append(brand)
+            if platform:
+                platforms = [p.strip() for p in platform.split(',') if p.strip()]
+                if platforms:
+                    placeholders = ','.join(['%s'] * len(platforms))
+                    where_parts.append(f'"Platform" IN ({placeholders})')
+                    params.extend(platforms)
+
+            where_clause = ' WHERE ' + ' AND '.join(where_parts) if where_parts else ''
+
+            # Ensure we only select columns that actually exist to avoid DB errors
+            cursor.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'ecom_consolidated'
+                """
+            )
+            existing_columns = set(row[0] for row in cursor.fetchall())
+            selected_columns = [col for col in selected_columns if col in existing_columns]
+
+            # Build dynamic query
+            columns_sql = ', '.join(f'"{col}"' for col in selected_columns)
+            query = f"""
+                SELECT {columns_sql}
+                FROM public.ecom_consolidated
+                {where_clause}
+                ORDER BY "Date" DESC, "Platform", "Brand"
+            """
+
+            cursor.execute(query, params)
+            columns = [col[0] for col in cursor.description]
+            rows = cursor.fetchall()
+
+            # Convert to list of dictionaries
+            data = [dict(zip(columns, row)) for row in rows]
+
+            # Get unique brands and platforms for filter options
+            cursor.execute('SELECT DISTINCT "Brand" FROM public.ecom_consolidated WHERE "Brand" IS NOT NULL ORDER BY "Brand"')
+            brands = [row[0] for row in cursor.fetchall()]
+
+            cursor.execute('SELECT DISTINCT "Platform" FROM public.ecom_consolidated WHERE "Platform" IS NOT NULL ORDER BY "Platform"')
+            platforms = [row[0] for row in cursor.fetchall()]
+
+            return Response({
+                'success': True,
+                'data': data,
+                'hygiene_columns': hygiene_columns_map,
+                'selected_columns': selected_columns,
                 'options': {
                     'brands': brands,
                     'platforms': platforms
